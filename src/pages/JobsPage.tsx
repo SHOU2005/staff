@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Plus, MapPin, DollarSign, User, Phone,
   Search, Pencil, X, Building2, Briefcase,
-  ToggleLeft, ToggleRight, ChevronDown, ChevronUp,
+  ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Users,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,6 +24,7 @@ interface Job {
   salary: string | null;
   pg_id: string | null;
   status: string;
+  vacancies: number | null;
 }
 
 export default function JobsPage() {
@@ -39,9 +40,9 @@ export default function JobsPage() {
   const [editingPgForm, setEditingPgForm] = useState({ name: "", owner_name: "", owner_phone: "", address_link: "" });
 
   const [showAddJobForPG, setShowAddJobForPG] = useState<string | null>(null);
-  const [jobForm, setJobForm] = useState({ title: "", salary: "" });
+  const [jobForm, setJobForm] = useState({ title: "", salary: "", vacancies: 1 });
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
-  const [editingJobForm, setEditingJobForm] = useState({ title: "", salary: "" });
+  const [editingJobForm, setEditingJobForm] = useState({ title: "", salary: "", vacancies: 1 });
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Open" | "Closed">("All");
   const [saving, setSaving] = useState(false);
@@ -122,6 +123,7 @@ export default function JobsPage() {
     const { error } = await supabase.from("jobs").insert({
       title: jobForm.title.trim(),
       salary: jobForm.salary.trim() || null,
+      vacancies: jobForm.vacancies || 1,
       pg_id: pgId,
       added_by: user!.id,
     });
@@ -131,7 +133,7 @@ export default function JobsPage() {
       toast.error("Failed: " + (error.message || "Unknown error"));
     } else {
       toast.success("Job posted! ✅");
-      setJobForm({ title: "", salary: "" });
+      setJobForm({ title: "", salary: "", vacancies: 1 });
       setShowAddJobForPG(null);
     }
   };
@@ -143,6 +145,7 @@ export default function JobsPage() {
     const { error } = await supabase.from("jobs").update({
       title: editingJobForm.title.trim(),
       salary: editingJobForm.salary.trim() || null,
+      vacancies: editingJobForm.vacancies || 1,
     }).eq("id", editingJobId);
     setSaving(false);
     if (error) {
@@ -387,6 +390,14 @@ export default function JobsPage() {
                             <input className="form-input" placeholder="12k–14k" value={jobForm.salary} onChange={(e) => setJobForm((f) => ({ ...f, salary: e.target.value }))} />
                           </div>
                         </div>
+                        <div className="form-group" style={{ marginBottom: 12 }}>
+                          <label className="form-label">Total Vacancies</label>
+                          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                            <button type="button" onClick={() => setJobForm((f) => ({ ...f, vacancies: Math.max(1, (f.vacancies || 1) - 1) }))} style={{ width: 40, height: 44, borderRadius: "10px 0 0 10px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "var(--text-primary)", fontSize: 18, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>−</button>
+                            <div style={{ flex: 1, height: 44, background: "var(--bg-input)", border: "1px solid rgba(255,255,255,0.08)", borderLeft: "none", borderRight: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "var(--brand-green)" }}>{jobForm.vacancies || 1}</div>
+                            <button type="button" onClick={() => setJobForm((f) => ({ ...f, vacancies: (f.vacancies || 1) + 1 }))} style={{ width: 40, height: 44, borderRadius: "0 10px 10px 0", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "var(--text-primary)", fontSize: 18, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>+</button>
+                          </div>
+                        </div>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button type="submit" className="btn-primary" disabled={saving} style={{ flex: 1, padding: "10px" }}>
                             {saving ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : "Post Job"}
@@ -411,17 +422,24 @@ export default function JobsPage() {
                           marginBottom: 8, opacity: job.status === "Closed" ? 0.65 : 1,
                         }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{job.title}</div>
-                            {job.salary && (
-                              <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}>
-                                <DollarSign size={10} /> {job.salary}
-                              </div>
-                            )}
+                            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{job.title}</div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {job.salary && (
+                                <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}>
+                                  <DollarSign size={10} /> {job.salary}
+                                </div>
+                              )}
+                              {(job.vacancies ?? 0) > 0 && (
+                                <div style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 3, color: job.status === "Open" ? "var(--brand-teal)" : "var(--text-muted)" }}>
+                                  <Users size={10} /> {job.vacancies} {job.vacancies === 1 ? "vacancy" : "vacancies"}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                             {editingJobId !== job.id ? (
                               <button
-                                onClick={() => { setEditingJobId(job.id); setEditingJobForm({ title: job.title, salary: job.salary || "" }); }}
+                                onClick={() => { setEditingJobId(job.id); setEditingJobForm({ title: job.title, salary: job.salary || "", vacancies: job.vacancies || 1 }); }}
                                 style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4, display: "flex" }}
                               >
                                 <Pencil size={13} />
@@ -447,10 +465,18 @@ export default function JobsPage() {
                           </div>
                           {/* Inline edit */}
                           {editingJobId === job.id && (
-                            <form onSubmit={handleUpdateJob} style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, marginTop: 8, gridColumn: "1/-1" }}>
-                              <input className="form-input" style={{ fontSize: 13 }} value={editingJobForm.title} onChange={(e) => setEditingJobForm((f) => ({ ...f, title: e.target.value }))} placeholder="Role title" />
-                              <input className="form-input" style={{ fontSize: 13 }} value={editingJobForm.salary} onChange={(e) => setEditingJobForm((f) => ({ ...f, salary: e.target.value }))} placeholder="Salary" />
-                              <button type="submit" className="btn-primary" disabled={saving} style={{ padding: "0 14px", width: "auto" }}>Save</button>
+                            <form onSubmit={handleUpdateJob} style={{ width: "100%", marginTop: 10, gridColumn: "1/-1" }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                                <input className="form-input" style={{ fontSize: 13 }} value={editingJobForm.title} onChange={(e) => setEditingJobForm((f) => ({ ...f, title: e.target.value }))} placeholder="Role title" />
+                                <input className="form-input" style={{ fontSize: 13 }} value={editingJobForm.salary} onChange={(e) => setEditingJobForm((f) => ({ ...f, salary: e.target.value }))} placeholder="Salary (e.g. 12k–14k)" />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>Vacancies</span>
+                                <button type="button" onClick={() => setEditingJobForm((f) => ({ ...f, vacancies: Math.max(1, (f.vacancies || 1) - 1) }))} style={{ width: 32, height: 32, borderRadius: "8px 0 0 8px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "var(--text-primary)", fontSize: 16, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>−</button>
+                                <div style={{ width: 40, height: 32, background: "var(--bg-input)", border: "1px solid rgba(255,255,255,0.08)", borderLeft: "none", borderRight: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: "var(--brand-green)" }}>{editingJobForm.vacancies || 1}</div>
+                                <button type="button" onClick={() => setEditingJobForm((f) => ({ ...f, vacancies: (f.vacancies || 1) + 1 }))} style={{ width: 32, height: 32, borderRadius: "0 8px 8px 0", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "var(--text-primary)", fontSize: 16, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>+</button>
+                              </div>
+                              <button type="submit" className="btn-primary" disabled={saving} style={{ padding: "10px", width: "100%" }}>Save Changes</button>
                             </form>
                           )}
                         </div>
