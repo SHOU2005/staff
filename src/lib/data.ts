@@ -148,14 +148,43 @@ export interface Settings {
 }
 
 // ─── AUTH HELPERS ─────────────────────────────────────────────
-// ─── SUPABASE REALTIME SYNC (Candidates) ─────────────────────
+// ─── SUPABASE REALTIME SYNC ────────────────────────────────────
 function startRealtimeSync() {
-  supabase.channel('public:candidates')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'candidates' }, async () => {
-      // Refresh candidates list automatically on change
-      await importLegacyCandidatesFromSupabase(true);
+  supabase.channel('realtime:pipeline')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pipeline_candidates' }, async () => {
+      await syncCandidatesFromSupabase();
       window.dispatchEvent(new Event('switch_data_update'));
-    }).subscribe();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, async () => {
+      await syncCaptainsFromSupabase();
+      window.dispatchEvent(new Event('switch_data_update'));
+    })
+    .subscribe();
+}
+
+async function syncCandidatesFromSupabase() {
+  const { data } = await supabase.from('pipeline_candidates').select('*').order('submitted_at', { ascending: false });
+  if (!data) return;
+  const mapped: Candidate[] = data.map(r => ({
+    id: r.id, name: r.name, mobile: r.mobile, jobType: r.job_type, location: r.location,
+    currentStage: r.current_stage as Stage, referredBy: r.referred_by || '',
+    submittedAt: r.submitted_at, placedAt: r.placed_at, guaranteeExpiresAt: r.guarantee_expires_at,
+    replacementNeeded: r.replacement_needed, replacementForId: r.replacement_for_id,
+    flagged: r.flagged, archived: r.archived,
+    payout: { amount: r.payout_amount, status: r.payout_status as PayoutStatus, paidAt: r.payout_paid_at },
+    timeline: r.timeline || [], notes: r.notes || [],
+  }));
+  saveCandidates(mapped);
+}
+
+async function syncCaptainsFromSupabase() {
+  const { data } = await supabase.from('captains').select('*').order('joined_at', { ascending: true });
+  if (!data) return;
+  const mapped: Captain[] = data.map(r => ({
+    id: r.id, name: r.name, mobile: r.mobile, upiId: r.upi_id || '',
+    joinedAt: r.joined_at, active: r.active,
+  }));
+  saveCaptains(mapped);
 }
 
 // ─── AUTH HELPERS (Using Supabase `app_users` table) ────────────
@@ -183,7 +212,7 @@ export async function loginUser(phone: string, password: string): Promise<{ ok: 
   if (!checkPassword(password, data.password)) return { ok: false, error: 'Incorrect password' };
   
   const session: Session = {
-    userId: data.id, captainId: data.captainId, role: data.role,
+    userId: data.id, captainId: data.captain_id || 'ops_001', role: data.role,
     name: data.name, phone: data.phone, loginAt: new Date().toISOString(),
   };
   saveSession(session);
@@ -198,14 +227,20 @@ export async function registerCaptain(
   if (existing) return { ok: false, error: 'A captain with this number already exists' };
   
   const captainId = `captain_${Date.now()}`;
+
+  // Insert into captains table
+  await supabase.from('captains').insert({
+    id: captainId, name, mobile: clean, upi_id: upiId,
+    joined_at: new Date().toISOString().split('T')[0], active: true,
+  });
   
   const { data: user, error } = await supabase.from('app_users').insert({
-    phone: clean, password: encodePassword(password), name, role: 'captain', captainId, active: true
+    phone: clean, password: encodePassword(password), name,
+    role: 'captain', captain_id: captainId, active: true
   }).select().single();
 
   if (error) return { ok: false, error: 'Database error creating user' };
 
-  // Save captain profile locally (would also go to DB ideally)
   const captains = getCaptains();
   captains.push({ id: captainId, name, mobile: clean, upiId, joinedAt: new Date().toISOString().split('T')[0], active: true });
   saveCaptains(captains);
@@ -226,7 +261,7 @@ export async function registerOps(
   if (existing) return { ok: false, error: 'Ops account already exists' };
 
   const { data: user, error } = await supabase.from('app_users').insert({
-    phone: clean, password: encodePassword(password), name, role: 'ops', captainId: 'ops_001', active: true
+    phone: clean, password: encodePassword(password), name, role: 'ops', captain_id: null, active: true
   }).select().single();
 
   if (error) return { ok: false, error: 'Database error creating user' };
@@ -336,18 +371,27 @@ export function addCandidate(candidate: Omit<Candidate, 'id'>): Candidate {
   const newCand: Candidate = { ...candidate, id: `cand_${Date.now()}` };
   saveCandidates([newCand, ...candidates]);
   
-  // Realtime Supabase Push
-  supabase.from('candidates').insert({
-    name: newCand.name, phone: newCand.mobile, role: newCand.jobType,
-    location: newCand.location, status: newCand.currentStage,
-    added_by: newCand.referredBy, joining_date: newCand.placedAt,
-    doc_received: newCand.archived,
-    notes: JSON.stringify({ 
-      id: newCand.id, payout: newCand.payout, timeline: newCand.timeline, 
-      notes: newCand.notes, guaranteeExpiresAt: newCand.guaranteeExpiresAt,
-      replacementNeeded: newCand.replacementNeeded, replacementForId: newCand.replacementForId,
-      currentJob: newCand.currentJob, flagged: newCand.flagged 
-    })
+  // Push to Supabase pipeline_candidates table
+  supabase.from('pipeline_candidates').insert({
+    id: newCand.id,
+    name: newCand.name,
+    mobile: newCand.mobile,
+    job_type: newCand.jobType,
+    location: newCand.location,
+    current_stage: newCand.currentStage,
+    referred_by: newCand.referredBy,
+    submitted_at: newCand.submittedAt,
+    placed_at: newCand.placedAt,
+    guarantee_expires_at: newCand.guaranteeExpiresAt,
+    replacement_needed: newCand.replacementNeeded,
+    replacement_for_id: newCand.replacementForId,
+    flagged: newCand.flagged,
+    archived: newCand.archived,
+    payout_amount: newCand.payout.amount,
+    payout_status: newCand.payout.status,
+    payout_paid_at: newCand.payout.paidAt,
+    timeline: newCand.timeline,
+    notes: newCand.notes,
   }).then();
 
   return newCand;
@@ -359,6 +403,15 @@ export function updateCandidate(id: string, updates: Partial<Candidate>): Candid
   if (idx === -1) return null;
   candidates[idx] = { ...candidates[idx], ...updates };
   saveCandidates(candidates);
+  // Sync to Supabase
+  const u = candidates[idx];
+  supabase.from('pipeline_candidates').update({
+    current_stage: u.currentStage, placed_at: u.placedAt,
+    guarantee_expires_at: u.guaranteeExpiresAt, replacement_needed: u.replacementNeeded,
+    flagged: u.flagged, archived: u.archived,
+    payout_amount: u.payout.amount, payout_status: u.payout.status, payout_paid_at: u.payout.paidAt,
+    timeline: u.timeline, notes: u.notes,
+  }).eq('id', id).then();
   return candidates[idx];
 }
 
@@ -742,12 +795,9 @@ export function getNextStage(stage: Stage): Stage | null {
 export function initSeedData() {
   if (localStorage.getItem(KEYS.seedDone)) return;
 
+  const SHOURYA_ID = 'captain_shourya_001';
   const captains: Captain[] = [
-    { id: 'captain_001', name: 'Priya Sharma',   mobile: '9812345678', upiId: 'priya@paytm',  joinedAt: '2024-11-01', active: true },
-    { id: 'captain_002', name: 'Ravi Kumar',      mobile: '9823456789', upiId: 'ravi@upi',    joinedAt: '2024-11-15', active: true },
-    { id: 'captain_003', name: 'Anjali Singh',    mobile: '9834567890', upiId: 'anjali@gpay',  joinedAt: '2024-12-01', active: true },
-    { id: 'captain_004', name: 'Mohit Verma',     mobile: '9845678901', upiId: 'mohit@paytm',  joinedAt: '2025-01-05', active: true },
-    { id: 'captain_005', name: 'Sunita Yadav',    mobile: '9856789012', upiId: 'sunita@upi',   joinedAt: '2025-01-10', active: true },
+    { id: SHOURYA_ID, name: 'Shourya Pandey', mobile: '9000000000', upiId: 'shourya@paytm', joinedAt: '2025-01-01', active: true },
   ];
 
 
@@ -759,49 +809,37 @@ export function initSeedData() {
     return stages.map((s, i) => ({ stage: s, movedAt: dAgo(days - i * 2), movedBy: i === 0 ? capId : 'ops_001', note: '' }));
   };
 
+  // All candidates assigned to Shourya Pandey only
   const placed: Candidate[] = [
-    { id:'cand_p001', name:'Amit Kumar',    mobile:'9701111111', jobType:'Security Guard', location:'DLF Phase 2', currentStage:'Placed', referredBy:'captain_001', submittedAt:dAgo(40), placedAt:dAgo(5),  guaranteeExpiresAt:new Date(Date.now()+25*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(3)},  timeline:mkTl('Placed',40,'captain_001'), notes:[], flagged:false, archived:false },
-    { id:'cand_p002', name:'Sunita Devi',   mobile:'9702222222', jobType:'Housekeeping',    location:'Sohna Road',  currentStage:'Placed', referredBy:'captain_001', submittedAt:dAgo(42), placedAt:dAgo(8),  guaranteeExpiresAt:new Date(Date.now()+22*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'confirmed', paidAt:null}, timeline:mkTl('Placed',42,'captain_001'), notes:[], flagged:false, archived:false },
-    { id:'cand_p003', name:'Ramesh Singh',  mobile:'9703333333', jobType:'Driver',           location:'Cyber City',  currentStage:'Placed', referredBy:'captain_002', submittedAt:dAgo(35), placedAt:dAgo(26), guaranteeExpiresAt:new Date(Date.now()+4*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'pending',  paidAt:null}, timeline:mkTl('Placed',35,'captain_002'), notes:[], flagged:false, archived:false },
-    { id:'cand_p004', name:'Vikram Yadav',  mobile:'9704444444', jobType:'Cook',             location:'Udyog Vihar', currentStage:'Placed', referredBy:'captain_002', submittedAt:dAgo(50), placedAt:dAgo(31), guaranteeExpiresAt:new Date(Date.now()-1*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(10)}, timeline:mkTl('Placed',50,'captain_002'), notes:[], flagged:false, archived:false },
+    { id:'cand_p001', name:'Amit Kumar',    mobile:'9701111111', jobType:'Security Guard', location:'DLF Phase 2', currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(40), placedAt:dAgo(5),  guaranteeExpiresAt:new Date(Date.now()+25*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(3)},  timeline:mkTl('Placed',40,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_p002', name:'Sunita Devi',   mobile:'9702222222', jobType:'Housekeeping',    location:'Sohna Road',  currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(42), placedAt:dAgo(8),  guaranteeExpiresAt:new Date(Date.now()+22*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'confirmed', paidAt:null}, timeline:mkTl('Placed',42,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_p003', name:'Ramesh Singh',  mobile:'9703333333', jobType:'Driver',           location:'Cyber City',  currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(35), placedAt:dAgo(26), guaranteeExpiresAt:new Date(Date.now()+4*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'pending',  paidAt:null}, timeline:mkTl('Placed',35,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_p004', name:'Vikram Yadav',  mobile:'9704444444', jobType:'Cook',             location:'Udyog Vihar', currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(50), placedAt:dAgo(31), guaranteeExpiresAt:new Date(Date.now()-1*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(10)}, timeline:mkTl('Placed',50,SHOURYA_ID), notes:[], flagged:false, archived:false },
   ];
 
   const offered: Candidate[] = [
-    { id:'cand_o001', name:'Deepak Mishra', mobile:'9705555551', jobType:'Security Guard', location:'Golf Course Ext', currentStage:'Offered', referredBy:'captain_001', submittedAt:dAgo(20), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',20,'captain_001'), notes:[], flagged:false, archived:false },
-    { id:'cand_o002', name:'Kavita Rao',    mobile:'9705555552', jobType:'Housekeeping',   location:'DLF Phase 3',    currentStage:'Offered', referredBy:'captain_002', submittedAt:dAgo(18), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',18,'captain_002'), notes:[], flagged:false, archived:false },
-    { id:'cand_o003', name:'Suresh Patel',  mobile:'9705555553', jobType:'Cook',           location:'MG Road',        currentStage:'Offered', referredBy:'captain_003', submittedAt:dAgo(15), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',15,'captain_003'), notes:[], flagged:false, archived:false },
-    { id:'cand_o004', name:'Meena Kumari',  mobile:'9705555554', jobType:'Helper',         location:'Cyber City',     currentStage:'Offered', referredBy:'captain_004', submittedAt:dAgo(12), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',12,'captain_004'), notes:[], flagged:false, archived:false },
-    { id:'cand_o005', name:'Yogesh Sharma', mobile:'9705555555', jobType:'Driver',         location:'Manesar',        currentStage:'Offered', referredBy:'captain_005', submittedAt:dAgo(10), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',10,'captain_005'), notes:[], flagged:false, archived:false },
+    { id:'cand_o001', name:'Deepak Mishra', mobile:'9705555551', jobType:'Security Guard', location:'Golf Course Ext', currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(20), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',20,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_o002', name:'Kavita Rao',    mobile:'9705555552', jobType:'Housekeeping',   location:'DLF Phase 3',    currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(18), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',18,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_o003', name:'Suresh Patel',  mobile:'9705555553', jobType:'Cook',           location:'MG Road',        currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(15), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',15,SHOURYA_ID), notes:[], flagged:false, archived:false },
   ];
 
   const interviewed: Candidate[] = [
-    { id:'cand_i001', name:'Raju Gupta',    mobile:'9706661111', jobType:'Security Guard', location:'Sector 29',     currentStage:'Interviewed', referredBy:'captain_001', submittedAt:dAgo(14), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',14,'captain_001'), notes:[], flagged:false, archived:false },
-    { id:'cand_i002', name:'Pooja Nair',    mobile:'9706662222', jobType:'Housekeeping',   location:'DLF Phase 4',   currentStage:'Interviewed', referredBy:'captain_002', submittedAt:dAgo(12), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',12,'captain_002'), notes:[], flagged:false, archived:false },
-    { id:'cand_i003', name:'Arun Tiwari',   mobile:'9706663333', jobType:'Cook',           location:'Sector 45',     currentStage:'Interviewed', referredBy:'captain_003', submittedAt:dAgo(10), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',10,'captain_003'), notes:[], flagged:false, archived:false },
-    { id:'cand_i004', name:'Savita Devi',   mobile:'9706664444', jobType:'Helper',         location:'Udyog Vihar',   currentStage:'Interviewed', referredBy:'captain_004', submittedAt:dAgo(8),  placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',8,'captain_004'),  notes:[], flagged:false, archived:false },
-    { id:'cand_i005', name:'Dinesh Kumar',  mobile:'9706665555', jobType:'Driver',         location:'Golf Course Ext',currentStage:'Interviewed', referredBy:'captain_001', submittedAt:dAgo(7),  placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',7,'captain_001'),  notes:[], flagged:false, archived:false },
-    { id:'cand_i006', name:'Rekha Mishra',  mobile:'9706666666', jobType:'Housekeeping',   location:'Sohna Road',    currentStage:'Interviewed', referredBy:'captain_002', submittedAt:dAgo(6),  placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',6,'captain_002'),  notes:[], flagged:false, archived:false },
+    { id:'cand_i001', name:'Raju Gupta',    mobile:'9706661111', jobType:'Security Guard', location:'Sector 29',     currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(14), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',14,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_i002', name:'Pooja Nair',    mobile:'9706662222', jobType:'Housekeeping',   location:'DLF Phase 4',   currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(12), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',12,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_i003', name:'Arun Tiwari',   mobile:'9706663333', jobType:'Cook',           location:'Sector 45',     currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(10), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',10,SHOURYA_ID), notes:[], flagged:false, archived:false },
   ];
 
   const screening: Candidate[] = [
-    { id:'cand_s001', name:'Ganesh Yadav',  mobile:'9707771111', jobType:'Security Guard', location:'DLF Phase 1',  currentStage:'Screening', referredBy:'captain_001', submittedAt:dAgo(7), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',7,'captain_001'), notes:[], flagged:false, archived:false },
-    { id:'cand_s002', name:'Neha Verma',    mobile:'9707772222', jobType:'Housekeeping',   location:'Cyber City',   currentStage:'Screening', referredBy:'captain_003', submittedAt:dAgo(5), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',5,'captain_003'), notes:[], flagged:false, archived:false },
-    { id:'cand_s003', name:'Manoj Singh',   mobile:'9707773333', jobType:'Cook',           location:'MG Road',      currentStage:'Screening', referredBy:'captain_004', submittedAt:dAgo(4), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',4,'captain_004'), notes:[], flagged:false, archived:false },
-    { id:'cand_s004', name:'Seema Patel',   mobile:'9707774444', jobType:'Helper',         location:'Sector 56',    currentStage:'Screening', referredBy:'captain_005', submittedAt:dAgo(3), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',3,'captain_005'), notes:[], flagged:false, archived:false },
-    { id:'cand_s005', name:'Rajesh Thakur', mobile:'9707775555', jobType:'Driver',         location:'Udyog Vihar',  currentStage:'Screening', referredBy:'captain_002', submittedAt:dAgo(3), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',3,'captain_002'), notes:[], flagged:false, archived:false },
-    { id:'cand_s006', name:'Geeta Sharma',  mobile:'9707776666', jobType:'Security Guard', location:'DLF Phase 5',  currentStage:'Screening', referredBy:'captain_003', submittedAt:dAgo(2), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',2,'captain_003'), notes:[], flagged:false, archived:false },
-    { id:'cand_s007', name:'Harish Pandey', mobile:'9707777777', jobType:'Housekeeping',   location:'Manesar',      currentStage:'Screening', referredBy:'captain_001', submittedAt:dAgo(1), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',1,'captain_001'), notes:[], flagged:false, archived:false },
+    { id:'cand_s001', name:'Ganesh Yadav',  mobile:'9707771111', jobType:'Security Guard', location:'DLF Phase 1',  currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(7), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',7,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_s002', name:'Neha Verma',    mobile:'9707772222', jobType:'Housekeeping',   location:'Cyber City',   currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(5), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',5,SHOURYA_ID), notes:[], flagged:false, archived:false },
+    { id:'cand_s003', name:'Manoj Singh',   mobile:'9707773333', jobType:'Cook',           location:'MG Road',      currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(4), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',4,SHOURYA_ID), notes:[], flagged:false, archived:false },
   ];
 
   const sourced: Candidate[] = [
-    { id:'cand_src001', name:'Pradeep Rawat', mobile:'9708881111', jobType:'Security Guard', location:'Sector 14',     currentStage:'Sourced', referredBy:'captain_001', submittedAt:dAgo(2),   placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(2),  movedBy:'captain_001',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src002', name:'Lalita Meena',  mobile:'9708882222', jobType:'Cook',           location:'DLF Phase 2',   currentStage:'Sourced', referredBy:'captain_002', submittedAt:dAgo(1),   placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(1),  movedBy:'captain_002',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src003', name:'Bharat Chauhan',mobile:'9708883333', jobType:'Helper',         location:'Sohna Road',    currentStage:'Sourced', referredBy:'captain_003', submittedAt:dAgo(1),   placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(1),  movedBy:'captain_003',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src004', name:'Anita Joshi',   mobile:'9708884444', jobType:'Housekeeping',   location:'Golf Course Ext',currentStage:'Sourced', referredBy:'captain_004', submittedAt:dAgo(0.5), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.5),movedBy:'captain_004',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src005', name:'Vivek Soni',    mobile:'9708885555', jobType:'Driver',         location:'Cyber City',    currentStage:'Sourced', referredBy:'captain_005', submittedAt:dAgo(0.3), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.3),movedBy:'captain_005',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src006', name:'Kiran Bala',    mobile:'9708886666', jobType:'Cook',           location:'Sector 29',     currentStage:'Sourced', referredBy:'captain_001', submittedAt:dAgo(0.2), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.2),movedBy:'captain_001',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src007', name:'Mohan Das',     mobile:'9708887777', jobType:'Helper',         location:'Manesar',       currentStage:'Sourced', referredBy:'captain_002', submittedAt:dAgo(0.1), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.1),movedBy:'captain_002',note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src008', name:'Suman Rani',    mobile:'9708888888', jobType:'Security Guard', location:'DLF Phase 1',   currentStage:'Sourced', referredBy:'captain_003', submittedAt:new Date().toISOString(), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:new Date().toISOString(),movedBy:'captain_003',note:''}], notes:[], flagged:false, archived:false },
+    { id:'cand_src001', name:'Harish Pandey', mobile:'9707777777', jobType:'Housekeeping',   location:'Manesar',    currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(1),   placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(1),   movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
+    { id:'cand_src002', name:'Vivek Soni',    mobile:'9708885555', jobType:'Driver',         location:'Cyber City', currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(0.3), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.3), movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
+    { id:'cand_src003', name:'Kiran Bala',    mobile:'9708886666', jobType:'Cook',           location:'Sector 29',  currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(0.2), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.2), movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
+    { id:'cand_src004', name:'Suman Rani',    mobile:'9708888888', jobType:'Security Guard', location:'DLF Phase 1',currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:new Date().toISOString(), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:new Date().toISOString(),movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
   ];
 
   if (getCandidates().length === 0) {
@@ -819,7 +857,7 @@ export function initSeedData() {
     { id:'n001', type:'stage_change', title:'Amit Kumar moved to Placed',          body:'Your candidate has been placed! ₹300 earned.', createdAt:dAgo(5),  read:false, candidateId:'cand_p001', forRole:'all' },
     { id:'n002', type:'payout',       title:'Payout of ₹300 confirmed',            body:'Payment for Amit Kumar via paytm',              createdAt:dAgo(3),  read:false, forRole:'captain' },
     { id:'n003', type:'guarantee',    title:'⚠️ Guarantee expiring in 4 days',     body:'Ramesh Singh — act fast!',                     createdAt:dAgo(1),  read:false, candidateId:'cand_p003', forRole:'ops' },
-    { id:'n004', type:'new_lead',     title:'New lead submitted',                  body:'Raju Gupta added by Priya',                    createdAt:dAgo(14), read:true,  candidateId:'cand_i001', forRole:'ops' },
+    { id:'n004', type:'new_lead',     title:'New lead submitted',                  body:'Raju Gupta added by Shourya',                  createdAt:dAgo(14), read:true,  candidateId:'cand_i001', forRole:'ops' },
     { id:'n005', type:'placement',    title:'Sunita Devi placed!',                 body:'Sohna Road · Housekeeping · ₹300',             createdAt:dAgo(8),  read:true,  candidateId:'cand_p002', forRole:'all' },
     { id:'n006', type:'stage_change', title:'Deepak Mishra got an offer',          body:'Golf Course Ext · Security Guard',             createdAt:dAgo(2),  read:true,  candidateId:'cand_o001', forRole:'all' },
     { id:'n007', type:'sla_alert',    title:'🔴 SLA Alert: Ganesh Yadav',          body:'7+ days in Screening — action required',       createdAt:dAgo(1),  read:false, candidateId:'cand_s001', forRole:'ops' },
@@ -827,9 +865,9 @@ export function initSeedData() {
   ];
 
   saveCaptains(captains);
+  if (getJobs().length === 0) saveJobs(jobs);
+  if (getNotifications().length === 0) saveNotifications(notifications);
   saveCandidates([...placed, ...offered, ...interviewed, ...screening, ...sourced]);
-  saveJobs(jobs);
-  saveNotifications(notifications);
   localStorage.setItem(KEYS.seedDone, 'true');
 }
 
