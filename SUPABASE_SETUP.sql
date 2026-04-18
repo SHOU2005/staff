@@ -77,16 +77,26 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- ────────────────────────────────────────────────────────────────
--- ENABLE REALTIME on all tables
+-- ENABLE REALTIME — safely skip tables already in publication
 -- ────────────────────────────────────────────────────────────────
-ALTER PUBLICATION supabase_realtime ADD TABLE pipeline_candidates;
-ALTER PUBLICATION supabase_realtime ADD TABLE captains;
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE app_users;
-ALTER PUBLICATION supabase_realtime ADD TABLE jobs;
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['pipeline_candidates','captains','notifications','app_users','jobs']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    END IF;
+  END LOOP;
+END;
+$$;
 
 -- ────────────────────────────────────────────────────────────────
--- ROW LEVEL SECURITY (allow all reads from anon key for now)
+-- ROW LEVEL SECURITY — allow all from anon key (tighten later)
 -- ────────────────────────────────────────────────────────────────
 ALTER TABLE captains             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users            ENABLE ROW LEVEL SECURITY;
@@ -94,7 +104,13 @@ ALTER TABLE pipeline_candidates  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jobs                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications        ENABLE ROW LEVEL SECURITY;
 
--- Allow full read/write from frontend (anon key) — tighten later
+-- Drop policies first if they exist (safe to re-run)
+DROP POLICY IF EXISTS "allow_all_captains"            ON captains;
+DROP POLICY IF EXISTS "allow_all_app_users"           ON app_users;
+DROP POLICY IF EXISTS "allow_all_pipeline_candidates" ON pipeline_candidates;
+DROP POLICY IF EXISTS "allow_all_jobs"                ON jobs;
+DROP POLICY IF EXISTS "allow_all_notifications"       ON notifications;
+
 CREATE POLICY "allow_all_captains"            ON captains            FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_app_users"           ON app_users           FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "allow_all_pipeline_candidates" ON pipeline_candidates FOR ALL USING (true) WITH CHECK (true);
@@ -102,15 +118,17 @@ CREATE POLICY "allow_all_jobs"                ON jobs                FOR ALL USI
 CREATE POLICY "allow_all_notifications"       ON notifications       FOR ALL USING (true) WITH CHECK (true);
 
 -- ────────────────────────────────────────────────────────────────
--- SEED: Insert Shourya Pandey captain
+-- SEED: Shourya Pandey captain
 -- ────────────────────────────────────────────────────────────────
 INSERT INTO captains (id, name, mobile, upi_id, joined_at, active)
 VALUES ('captain_shourya_001', 'Shourya Pandey', '9000000000', 'shourya@paytm', CURRENT_DATE, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 -- ────────────────────────────────────────────────────────────────
--- SEED: Insert Admin + Shourya login accounts
--- Password below = base64('shourya123'), change after first login!
+-- SEED: Login accounts
+-- shourya123  → c2hvdXJ5YTEyMw==
+-- Admin@123   → QWRtaW5AMTIz
+-- Change passwords after first login!
 -- ────────────────────────────────────────────────────────────────
 INSERT INTO app_users (phone, password, name, role, captain_id)
 VALUES
@@ -119,8 +137,9 @@ VALUES
 ON CONFLICT (phone) DO NOTHING;
 
 -- ────────────────────────────────────────────────────────────────
--- REALTIME: Verify replication is active
+-- VERIFY: Check which tables are in realtime publication
 -- ────────────────────────────────────────────────────────────────
 SELECT schemaname, tablename
 FROM pg_publication_tables
-WHERE pubname = 'supabase_realtime';
+WHERE pubname = 'supabase_realtime'
+ORDER BY tablename;
