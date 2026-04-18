@@ -39,7 +39,11 @@ export default function PipelinePage() {
     setCaptainMap(cm);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load(); 
+    window.addEventListener('switch_data_update', load);
+    return () => window.removeEventListener('switch_data_update', load);
+  }, [load]);
 
   const toggleView = (v: 'list' | 'kanban') => {
     setView(v);

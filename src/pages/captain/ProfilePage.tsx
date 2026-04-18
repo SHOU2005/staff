@@ -46,10 +46,10 @@ export default function CaptainProfilePage() {
     load();
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (newPwd1 !== newPwd2) { toast.error('New passwords do not match'); return; }
     if (newPwd1.length < 6)  { toast.error('Password must be at least 6 characters'); return; }
-    const result = changePassword(session?.phone||'', oldPwd, newPwd1);
+    const result = await changePassword(session?.phone||'', oldPwd, newPwd1);
     if (!result.ok) { toast.error(result.error!); return; }
     toast.success('Password changed!');
     setChangingPwd(false);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LogOut, ChevronRight } from 'lucide-react';
-import { getSettings, saveSettings, getCaptains, saveCaptains, getCandidates, getUsers, saveUsers, type Settings, type Captain } from '../../lib/data';
+import { getSettings, saveSettings, getCaptains, saveCaptains, getCandidates, type Settings, type Captain } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
@@ -45,13 +45,9 @@ export default function OpsSettingsPage() {
     toast.success('Captain added!');
   };
   const toggleCaptainActive = (id: string) => {
-    const users = getUsers();
     const updated = captains.map(c => c.id === id ? { ...c, active: !c.active } : c);
     setCaptains(updated); saveCaptains(updated);
-    // Also toggle user
-    const userIdx = users.findIndex(u => u.captainId === id);
-    if (userIdx !== -1) { users[userIdx].active = !users[userIdx].active; saveUsers(users); }
-    toast.success('Captain status updated');
+    toast.success('Captain status updated locally');
   };
   const exportCSV = () => {
     const candidates = getCandidates();

@@ -148,6 +148,17 @@ export interface Settings {
 }
 
 // ─── AUTH HELPERS ─────────────────────────────────────────────
+// ─── SUPABASE REALTIME SYNC (Candidates) ─────────────────────
+function startRealtimeSync() {
+  supabase.channel('public:candidates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'candidates' }, async () => {
+      // Refresh candidates list automatically on change
+      await importLegacyCandidatesFromSupabase(true);
+      window.dispatchEvent(new Event('switch_data_update'));
+    }).subscribe();
+}
+
+// ─── AUTH HELPERS (Using Supabase `app_users` table) ────────────
 function encodePassword(pwd: string): string {
   return btoa(encodeURIComponent(pwd));
 }
@@ -155,12 +166,6 @@ function checkPassword(plain: string, encoded: string): boolean {
   try { return btoa(encodeURIComponent(plain)) === encoded; } catch { return false; }
 }
 
-export function getUsers(): SwitchUser[] {
-  return JSON.parse(localStorage.getItem(KEYS.users) || '[]');
-}
-export function saveUsers(users: SwitchUser[]) {
-  localStorage.setItem(KEYS.users, JSON.stringify(users));
-}
 export function getSession(): Session | null {
   const s = localStorage.getItem(KEYS.session);
   return s ? JSON.parse(s) : null;
@@ -170,73 +175,74 @@ export function saveSession(session: Session | null) {
   else localStorage.removeItem(KEYS.session);
 }
 
-export function loginUser(phone: string, password: string): { ok: boolean; session?: Session; error?: string } {
-  const users = getUsers();
-  const user = users.find(u => u.phone === phone.replace(/\D/g, ''));
-  if (!user) return { ok: false, error: 'No account found for this number' };
-  if (!user.active) return { ok: false, error: 'Account deactivated. Contact ops team.' };
-  if (!checkPassword(password, user.password)) return { ok: false, error: 'Incorrect password' };
+export async function loginUser(phone: string, password: string): Promise<{ ok: boolean; session?: Session; error?: string }> {
+  const clean = phone.replace(/\D/g, '');
+  const { data, error } = await supabase.from('app_users').select('*').eq('phone', clean).single();
+  if (error || !data) return { ok: false, error: 'No account found for this number' };
+  if (!data.active) return { ok: false, error: 'Account deactivated. Contact ops team.' };
+  if (!checkPassword(password, data.password)) return { ok: false, error: 'Incorrect password' };
+  
   const session: Session = {
-    userId: user.id, captainId: user.captainId, role: user.role,
-    name: user.name, phone: user.phone, loginAt: new Date().toISOString(),
+    userId: data.id, captainId: data.captainId, role: data.role,
+    name: data.name, phone: data.phone, loginAt: new Date().toISOString(),
   };
   saveSession(session);
   return { ok: true, session };
 }
 
-export function registerCaptain(
+export async function registerCaptain(
   name: string, phone: string, password: string, upiId: string
-): { ok: boolean; session?: Session; error?: string } {
-  const users = getUsers();
+): Promise<{ ok: boolean; session?: Session; error?: string }> {
   const clean = phone.replace(/\D/g, '');
-  if (users.find(u => u.phone === clean)) return { ok: false, error: 'A captain with this number already exists' };
+  const { data: existing } = await supabase.from('app_users').select('id').eq('phone', clean).single();
+  if (existing) return { ok: false, error: 'A captain with this number already exists' };
   
-  // Create captain in captains list
-  const captains = getCaptains();
   const captainId = `captain_${Date.now()}`;
+  
+  const { data: user, error } = await supabase.from('app_users').insert({
+    phone: clean, password: encodePassword(password), name, role: 'captain', captainId, active: true
+  }).select().single();
+
+  if (error) return { ok: false, error: 'Database error creating user' };
+
+  // Save captain profile locally (would also go to DB ideally)
+  const captains = getCaptains();
   captains.push({ id: captainId, name, mobile: clean, upiId, joinedAt: new Date().toISOString().split('T')[0], active: true });
   saveCaptains(captains);
-
-  const user: SwitchUser = {
-    id: `user_${Date.now()}`, phone: clean,
-    password: encodePassword(password), name, role: 'captain',
-    captainId, joinedAt: new Date().toISOString(), active: true,
-  };
-  users.push(user);
-  saveUsers(users);
 
   const session: Session = { userId: user.id, captainId, role: 'captain', name, phone: clean, loginAt: new Date().toISOString() };
   saveSession(session);
   return { ok: true, session };
 }
 
-export function registerOps(name: string, phone: string, password: string, code: string): { ok: boolean; session?: Session; error?: string } {
+export async function registerOps(
+  name: string, phone: string, password: string, code: string
+): Promise<{ ok: boolean; session?: Session; error?: string }> {
   const settings = getSettings();
   if (code !== settings.opsCode) return { ok: false, error: 'Invalid ops access code' };
-  const users = getUsers();
   const clean = phone.replace(/\D/g, '');
-  if (users.find(u => u.phone === clean && u.role === 'ops')) return { ok: false, error: 'Ops account already exists for this number' };
+  
+  const { data: existing } = await supabase.from('app_users').select('id').eq('phone', clean).eq('role', 'ops').single();
+  if (existing) return { ok: false, error: 'Ops account already exists' };
 
-  const user: SwitchUser = {
-    id: `user_${Date.now()}`, phone: clean,
-    password: encodePassword(password), name, role: 'ops',
-    captainId: 'ops_001', joinedAt: new Date().toISOString(), active: true,
-  };
-  users.push(user);
-  saveUsers(users);
+  const { data: user, error } = await supabase.from('app_users').insert({
+    phone: clean, password: encodePassword(password), name, role: 'ops', captainId: 'ops_001', active: true
+  }).select().single();
+
+  if (error) return { ok: false, error: 'Database error creating user' };
 
   const session: Session = { userId: user.id, captainId: 'ops_001', role: 'ops', name, phone: clean, loginAt: new Date().toISOString() };
   saveSession(session);
   return { ok: true, session };
 }
 
-export function changePassword(phone: string, oldPwd: string, newPwd: string): { ok: boolean; error?: string } {
-  const users = getUsers();
-  const idx = users.findIndex(u => u.phone === phone.replace(/\D/g, ''));
-  if (idx === -1) return { ok: false, error: 'User not found' };
-  if (!checkPassword(oldPwd, users[idx].password)) return { ok: false, error: 'Current password is incorrect' };
-  users[idx].password = encodePassword(newPwd);
-  saveUsers(users);
+export async function changePassword(phone: string, oldPwd: string, newPwd: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = phone.replace(/\D/g, '');
+  const { data } = await supabase.from('app_users').select('*').eq('phone', clean).single();
+  if (!data) return { ok: false, error: 'User not found' };
+  if (!checkPassword(oldPwd, data.password)) return { ok: false, error: 'Current password incorrect' };
+  
+  await supabase.from('app_users').update({ password: encodePassword(newPwd) }).eq('id', data.id);
   return { ok: true };
 }
 
@@ -329,6 +335,21 @@ export function addCandidate(candidate: Omit<Candidate, 'id'>): Candidate {
   const candidates = getCandidates();
   const newCand: Candidate = { ...candidate, id: `cand_${Date.now()}` };
   saveCandidates([newCand, ...candidates]);
+  
+  // Realtime Supabase Push
+  supabase.from('candidates').insert({
+    name: newCand.name, phone: newCand.mobile, role: newCand.jobType,
+    location: newCand.location, status: newCand.currentStage,
+    added_by: newCand.referredBy, joining_date: newCand.placedAt,
+    doc_received: newCand.archived,
+    notes: JSON.stringify({ 
+      id: newCand.id, payout: newCand.payout, timeline: newCand.timeline, 
+      notes: newCand.notes, guaranteeExpiresAt: newCand.guaranteeExpiresAt,
+      replacementNeeded: newCand.replacementNeeded, replacementForId: newCand.replacementForId,
+      currentJob: newCand.currentJob, flagged: newCand.flagged 
+    })
+  }).then();
+
   return newCand;
 }
 
@@ -729,15 +750,7 @@ export function initSeedData() {
     { id: 'captain_005', name: 'Sunita Yadav',    mobile: '9856789012', upiId: 'sunita@upi',   joinedAt: '2025-01-10', active: true },
   ];
 
-  // Seed users with passwords
-  const users: SwitchUser[] = [
-    // Ops account
-    { id: 'user_ops_01', phone: '9999999999', password: encodePassword('switch@ops'), name: 'Ops Admin', role: 'ops', captainId: 'ops_001', joinedAt: new Date().toISOString(), active: true },
-    // Captain accounts
-    { id: 'user_c_001', phone: '9812345678', password: encodePassword('priya@123'),  name: 'Priya Sharma', role: 'captain', captainId: 'captain_001', joinedAt: new Date().toISOString(), active: true },
-    { id: 'user_c_002', phone: '9823456789', password: encodePassword('ravi@123'),   name: 'Ravi Kumar',   role: 'captain', captainId: 'captain_002', joinedAt: new Date().toISOString(), active: true },
-    { id: 'user_c_003', phone: '9834567890', password: encodePassword('anjali@123'), name: 'Anjali Singh', role: 'captain', captainId: 'captain_003', joinedAt: new Date().toISOString(), active: true },
-  ];
+
 
   const dAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 
@@ -814,28 +827,61 @@ export function initSeedData() {
   ];
 
   saveCaptains(captains);
-  saveUsers(users);
   saveCandidates([...placed, ...offered, ...interviewed, ...screening, ...sourced]);
   saveJobs(jobs);
   saveNotifications(notifications);
   localStorage.setItem(KEYS.seedDone, 'true');
 }
 
-// ─── LEGACY SUPABASE IMPORT ────────────────────────────────────
-export async function importLegacyCandidatesFromSupabase() {
-  if (localStorage.getItem('switch_legacy_imported')) return;
+// ─── MIGRATION: SHOURYA PANDEY ─────────────────────────────────
+export function applyShouryaPandeyMigration() {
+  if (localStorage.getItem('switch_migration_shourya_2')) return;
+  
+  const toRemoveNames = ['Priya Sharma', 'Ravi Kumar', 'Anjali Singh', 'Mohit Verma', 'Sunita Yadav'];
+  let captains = getCaptains();
+  const toRemoveIds = captains.filter(c => toRemoveNames.includes(c.name)).map(c => c.id);
+  
+  const shouryaId = 'captain_shourya_001';
+  if (!captains.find(c => c.name.toLowerCase() === 'shourya pandey')) {
+    captains.push({ id: shouryaId, name: 'Shourya Pandey', mobile: '9000000000', upiId: 'shourya@paytm', joinedAt: new Date().toISOString().split('T')[0], active: true });
+  }
+  
+  captains = captains.filter(c => !toRemoveIds.includes(c.id));
+  saveCaptains(captains);
+  
+  let candidates = getCandidates();
+  // Remove candidates sourced by the deleted captains
+  candidates = candidates.filter(cand => !toRemoveIds.includes(cand.referredBy));
+  
+  // Assign all remaining candidates to Shourya Pandey
+  candidates = candidates.map(cand => ({ ...cand, referredBy: shouryaId }));
+  saveCandidates(candidates);
+  
+  localStorage.setItem('switch_migration_shourya_2', 'true');
+}
+
+// ─── SUPABASE PULL ─────────────────────────────────────────────
+export async function importLegacyCandidatesFromSupabase(force = false) {
+  if (!force && localStorage.getItem('switch_legacy_imported')) {
+    applyShouryaPandeyMigration();
+    startRealtimeSync();
+    return;
+  }
   try {
     const { data: legacyCands, error } = await supabase.from('candidates').select('*');
     if (error || !legacyCands) return;
     
-    const existing = getCandidates();
+    // We replace the entire candidates state to ensure sync
     const imported: Candidate[] = legacyCands.map(sb => {
+      let extra = {};
+      try { extra = JSON.parse(sb.notes || '{}'); } catch (e) {}
+
       const stageMap: Record<string, Stage> = {
         'Joined': 'Placed',
         'Interview Scheduled': 'Interviewed',
         'Offer Pending': 'Offered',
       };
-      const stage = stageMap[sb.status] || 'Sourced';
+      const stage = stageMap[sb.status] || (sb.status as Stage) || 'Sourced';
       const isPlaced = stage === 'Placed';
       
       let gDate = null;
@@ -846,33 +892,31 @@ export async function importLegacyCandidatesFromSupabase() {
       }
 
       return {
-        id: `cand_legacy_${sb.id}`,
+        id: (extra as any).id || `cand_legacy_${sb.id}`,
         name: sb.name || 'Unknown',
         mobile: sb.phone || '0000000000',
         jobType: sb.role || 'Other',
         location: sb.location || 'Other',
         currentStage: stage,
-        referredBy: 'ops_001', // assigned to Ops Team
+        referredBy: sb.added_by || 'ops_001',
         submittedAt: sb.created_at || new Date().toISOString(),
-        placedAt: isPlaced ? (sb.joining_date || sb.created_at) : null,
-        guaranteeExpiresAt: gDate,
-        replacementNeeded: false,
-        payout: { amount: 300, status: isPlaced ? 'paid' : 'pending', paidAt: isPlaced ? (sb.joining_date || sb.created_at) : null },
-        timeline: [{ stage: stage, movedAt: sb.created_at || new Date().toISOString(), movedBy: 'ops_001', note: 'Imported from legacy system' }],
-        notes: sb.notes ? [{ text: sb.notes, addedBy: 'ops_001', addedAt: sb.created_at || new Date().toISOString() }] : [],
-        flagged: false,
-        archived: false
+        placedAt: sb.joining_date || ((extra as any).placedAt) || null,
+        guaranteeExpiresAt: (extra as any).guaranteeExpiresAt || gDate,
+        replacementNeeded: (extra as any).replacementNeeded || false,
+        replacementForId: (extra as any).replacementForId,
+        currentJob: (extra as any).currentJob,
+        payout: (extra as any).payout || { amount: 300, status: isPlaced ? 'paid' : 'pending', paidAt: isPlaced ? (sb.joining_date || sb.created_at) : null },
+        timeline: (extra as any).timeline || [{ stage: stage, movedAt: sb.created_at || new Date().toISOString(), movedBy: 'ops_001', note: 'Imported' }],
+        notes: (extra as any).notes || [],
+        flagged: (extra as any).flagged || false,
+        archived: sb.doc_received || false
       };
     });
 
-    if (imported.length > 0) {
-      // Filter out existing candidates by mobile to avoid duplicates if re-run
-      const existingMobiles = new Set(existing.map(c => c.mobile.replace(/\D/g, '')));
-      const newImport = imported.filter(c => !existingMobiles.has(c.mobile.replace(/\D/g, '')));
-      
-      saveCandidates([...newImport, ...existing]);
-    }
+    saveCandidates(imported);
     localStorage.setItem('switch_legacy_imported', 'true');
+    applyShouryaPandeyMigration();
+    if (!force) startRealtimeSync();
   } catch (err) {
     console.error('Import failed', err);
   }

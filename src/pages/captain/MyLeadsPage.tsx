@@ -29,7 +29,11 @@ export default function MyLeadsPage() {
     setCandidates(all);
   }, [captainId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load(); 
+    window.addEventListener('switch_data_update', load);
+    return () => window.removeEventListener('switch_data_update', load);
+  }, [load]);
 
   const getGuaranteeAlertIds = () => {
     return candidates

@@ -22,7 +22,7 @@ export default function AuthPage() {
     if (!phone || !password) { toast.error('Enter phone and password'); return; }
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
-    const result = loginUser(phone, password);
+    const result = await loginUser(phone, password);
     setLoading(false);
     if (!result.ok) { toast.error(result.error!); return; }
     toast.success(`Welcome back, ${result.session!.name}!`);
@@ -36,7 +36,7 @@ export default function AuthPage() {
     if (phone.replace(/\D/g,'').length !== 10) { toast.error('Enter a valid 10-digit number'); return; }
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
-    const result = registerCaptain(name, phone, password, upiId);
+    const result = await registerCaptain(name, phone, password, upiId);
     setLoading(false);
     if (!result.ok) { toast.error(result.error!); return; }
     toast.success('Account created! Welcome aboard! 🎉');
@@ -48,7 +48,7 @@ export default function AuthPage() {
     if (password !== confirmPwd) { toast.error('Passwords do not match'); return; }
     setLoading(true);
     await new Promise(r => setTimeout(r, 600));
-    const result = registerOps(name, phone, password, opsCode);
+    const result = await registerOps(name, phone, password, opsCode);
     setLoading(false);
     if (!result.ok) { toast.error(result.error!); return; }
     toast.success('Ops account created!');

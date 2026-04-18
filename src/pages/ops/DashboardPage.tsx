@@ -24,7 +24,11 @@ export default function OpsDashboardPage() {
     setAlerts(getGuaranteeAlerts().slice(0, 3));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load(); 
+    window.addEventListener('switch_data_update', load);
+    return () => window.removeEventListener('switch_data_update', load);
+  }, [load]);
 
   return (
     <div>
