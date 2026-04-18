@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function LeadSubmissionModal({ onClose, onSuccess }: Props) {
-  const { captainId, captainName } = useRole();
+  const { captainId } = useRole();
   const settings = getSettings();
 
   const [name, setName] = useState('');
@@ -70,6 +70,7 @@ export default function LeadSubmissionModal({ onClose, onSuccess }: Props) {
       }],
       notes: [],
       flagged: false,
+      archived: false,
     });
     setSubmittedCandidate(candidate);
     setSubmitted(true);

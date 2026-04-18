@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   getOpsAnalytics, getCaptains, getCandidates,
-  STAGE_ORDER,
 } from '../../lib/data';
 
 export default function AnalyticsPage() {
@@ -49,9 +48,9 @@ export default function AnalyticsPage() {
         {[
           { label: 'Pipeline (MTD)', value: analytics?.totalPipeline || 0, icon: '🗂', color: 'var(--brand-green)' },
           { label: 'Placements (MTD)', value: analytics?.placements || 0, icon: '✅', color: 'var(--success)' },
-          { label: 'Conversion Rate', value: `${analytics?.conversionRate || 0}%`, icon: '📈', color: '#7C3AED' },
+          { label: 'Conversion Rate', value: `${analytics?.convRate || 0}%`, icon: '📈', color: '#7C3AED' },
           { label: 'Gross Revenue', value: `₹${(analytics?.revenue || 0).toLocaleString('en-IN')}`, icon: '💰', color: '#D4A017' },
-        ].map(({ label, value, icon, color }) => (
+        ].map(({ label, value, icon }) => (
           <div key={label} style={{ background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)', borderRadius: 16, padding: '16px 14px' }}>
             <div style={{ fontSize: 22, marginBottom: 8 }}>{icon}</div>
             <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--neutral-900)', fontFamily: 'DM Mono, monospace', lineHeight: 1 }}>{value}</div>

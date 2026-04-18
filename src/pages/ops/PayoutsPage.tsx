@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, Shield } from 'lucide-react';
 import {
-  getPayoutRequests, approvePayoutRequest, rejectPayoutRequest, getCaptains,
-  type PayoutRequest, getOpsAnalytics, getSLAViolations, getGuaranteeAlerts,
+  getPayoutRequests, approvePayoutRequest, rejectPayoutRequest,
+  type PayoutRequest,
 } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
 export default function OpsPayoutsPage() {
-  const { captainName, captainId, clearRole } = useRole();
+  const { captainName } = useRole();
   const [requests, setRequests] = useState<PayoutRequest[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'rejected'>('pending');
   const [rejecting, setRejecting] = useState<string | null>(null);

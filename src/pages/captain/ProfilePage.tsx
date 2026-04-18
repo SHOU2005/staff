@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { LogOut, Edit2, ChevronRight, Shield, Phone, CreditCard, Award } from 'lucide-react';
 import {
-  getCandidates, getCaptains, getCaptainStats, getCaptainAchievements,
+  getCaptains, getCaptainStats, getCaptainAchievements,
   getTierConfig, getTierLabel, getEarningRateForPlacementNumber,
   saveCaptains, changePassword, type Captain,
 } from '../../lib/data';
@@ -10,8 +10,7 @@ import { useRole } from '../../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
 export default function CaptainProfilePage() {
-  const { captainId, captainName, captainUPI, clearRole, session } = useRole();
-  const navigate = useNavigate();
+  const { captainId, captainName, clearRole, session } = useRole();
   const [stats, setStats] = useState<ReturnType<typeof getCaptainStats> | null>(null);
   const [achievements, setAchievements] = useState<ReturnType<typeof getCaptainAchievements>>([]);
   const [captain, setCaptain] = useState<Captain | null>(null);

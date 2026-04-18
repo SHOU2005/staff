@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getCandidates, getCaptains, getGuaranteeAlerts, getOpsAnalytics,
-  getNotifications, type Candidate,
+  getGuaranteeAlerts, getOpsAnalytics,
 } from '../../lib/data';
 
 const STAGE_COLORS: Record<string, string> = {
@@ -17,19 +16,12 @@ export default function OpsDashboardPage() {
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<ReturnType<typeof getOpsAnalytics> | null>(null);
   const [alerts, setAlerts] = useState<ReturnType<typeof getGuaranteeAlerts>>([]);
-  const [captainCount, setCaptainCount] = useState(0);
-  const [unread, setUnread] = useState(0);
-  const [recentCandidates, setRecentCandidates] = useState<Candidate[]>([]);
+
 
   const load = useCallback(() => {
     setAnalytics(getOpsAnalytics());
     setAlerts(getGuaranteeAlerts().slice(0, 3));
-    setCaptainCount(getCaptains().length);
-    setUnread(getNotifications().filter((n) => !n.read).length);
-    const recent = getCandidates()
-      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-      .slice(0, 5);
-    setRecentCandidates(recent);
+
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -53,7 +45,7 @@ export default function OpsDashboardPage() {
         {[
           { label: 'Pipeline', value: analytics?.totalPipeline || 0, icon: '🗂', color: 'var(--brand-green)' },
           { label: 'Placements', value: analytics?.placements || 0, icon: '✅', color: 'var(--success)' },
-          { label: 'Conversion', value: `${analytics?.conversionRate || 0}%`, icon: '📈', color: '#7C3AED' },
+          { label: 'Conversion', value: `${analytics?.convRate || 0}%`, icon: '📈', color: '#7C3AED' },
           { label: 'Revenue', value: `₹${((analytics?.revenue || 0) / 1000).toFixed(0)}k`, icon: '💰', color: '#D4A017' },
         ].map(({ label, value, icon, color }) => (
           <div key={label} style={{
@@ -148,7 +140,7 @@ export default function OpsDashboardPage() {
           { label: 'View Captains', icon: '👷', to: '/ops/captains', color: '#7C3AED' },
           { label: 'Analytics', icon: '📈', to: '/ops/analytics', color: '#D4A017' },
           { label: 'Settings', icon: '⚙️', to: '/ops/settings', color: 'var(--neutral-700)' },
-        ].map(({ label, icon, to, color }) => (
+        ].map(({ label, icon, to }) => (
           <button
             key={to}
             onClick={() => navigate(to)}

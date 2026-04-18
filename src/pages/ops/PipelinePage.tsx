@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { Phone, MessageCircle, ChevronRight, ArrowRight } from 'lucide-react';
 import {
   getCandidates, getCaptains, moveCandidateStage, addNoteToCandidate,
-  STAGE_ORDER, getNextStage, type Candidate, type Stage, type Captain,
+  STAGE_ORDER, getNextStage, type Candidate, type Captain,
   getInitials, timeAgo,
 } from '../../lib/data';
 
@@ -16,7 +16,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string; border: string }>
 };
 
 export default function PipelinePage() {
-  const navigate = useNavigate();
+
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [captainMap, setCaptainMap] = useState<Record<string, string>>({});
   const [view, setView] = useState<'list' | 'kanban'>(() => (localStorage.getItem('ops_pipeline_view') as 'list' | 'kanban') || 'list');

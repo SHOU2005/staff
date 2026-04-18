@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft, Phone, Lock, User, KeyRound } from 'lucide-react';
-import { loginUser, registerCaptain, registerOps, type Session } from '../lib/data';
+import { loginUser, registerCaptain, registerOps } from '../lib/data';
 import { useRole } from '../contexts/RoleContext';
 import toast from 'react-hot-toast';
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getGuaranteeAlerts, getSLAViolations, markReplacementNeeded, getCaptains } from '../../lib/data';
+import { getGuaranteeAlerts, getSLAViolations, markReplacementNeeded } from '../../lib/data';
 import toast from 'react-hot-toast';
 
 export default function GuaranteePage() {

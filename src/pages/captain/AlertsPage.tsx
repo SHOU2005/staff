@@ -5,12 +5,14 @@ import {
 } from '../../lib/data';
 import { timeAgo } from '../../lib/data';
 
-const TYPE_CONFIG = {
+const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
   stage_change: { icon: '🟢', color: 'var(--success)' },
   payout: { icon: '💰', color: '#D4A017' },
   guarantee: { icon: '⚠️', color: 'var(--danger)' },
   new_lead: { icon: '👷', color: 'var(--brand-green)' },
   placement: { icon: '✅', color: 'var(--success)' },
+  achievement: { icon: '🏆', color: '#D4A017' },
+  sla_alert: { icon: '🚨', color: 'var(--danger)' },
 };
 
 export default function AlertsPage() {

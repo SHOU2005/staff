@@ -404,10 +404,10 @@ export function markReplacementNeeded(id: string): Candidate | null {
   const candidate = getCandidates().find(c => c.id === id);
   if (!candidate) return null;
   updateCandidate(id, { replacementNeeded: true });
+  const { id: _, ...rest } = candidate;
   // Create a new pipeline entry linked to original
   const newCand = addCandidate({
-    ...candidate,
-    id: '',
+    ...rest,
     currentStage: 'Sourced',
     placedAt: null,
     guaranteeExpiresAt: null,

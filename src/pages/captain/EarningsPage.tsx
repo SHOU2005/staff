@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useRole } from '../../contexts/RoleContext';
 import {
   getCandidates, getCaptainStats, getLeaderboard, createPayoutRequest,
-  getTierConfig, getEarningRateForPlacementNumber, STAGE_ORDER,
+  getTierConfig, getEarningRateForPlacementNumber,
   type Candidate,
 } from '../../lib/data';
 import toast from 'react-hot-toast';
 
-const TIER_COLORS = ['#059669','#D4A017','#7C3AED','var(--danger)'];
+
 
 export default function CaptainEarningsPage() {
   const { captainId, captainName, captainUPI } = useRole();
@@ -28,16 +28,11 @@ export default function CaptainEarningsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const myRank   = lb.findIndex(l => l.captain.id === captainId);
+
   const pending  = placed.filter(c => c.payout.status === 'pending'||c.payout.status==='confirmed');
   const totalPending = pending.reduce((s,c) => s+c.payout.amount, 0);
 
-  // Tiered earnings breakdown
-  const tierBreakdown = [
-    { label: 'Hires 1–30',  rate: 300, earned: placed.filter((_,i)=>i<30).reduce((s,c)=>s+c.payout.amount,0), count: Math.min(placed.length,30) },
-    { label: 'Hires 31–60', rate: 400, earned: placed.filter((_,i)=>i>=30&&i<60).reduce((s,c)=>s+c.payout.amount,0), count: Math.max(0,Math.min(placed.length,60)-30) },
-    { label: 'Hires 61+',   rate: 500, earned: placed.filter((_,i)=>i>=60).reduce((s,c)=>s+c.payout.amount,0), count: Math.max(0,placed.length-60) },
-  ].filter(t => t.count > 0 || placed.length === 0);
+
 
   const handlePayout = async () => {
     if (!captainUPI) { toast.error('Add your UPI ID in profile first'); navigate('/captain/profile'); return; }

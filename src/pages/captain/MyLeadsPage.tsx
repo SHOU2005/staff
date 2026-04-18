@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Phone, MessageCircle } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
-  getCandidates, type Candidate, type Stage,
-  getInitials, timeAgo,
+  getCandidates, type Candidate,
+  getInitials,
 } from '../../lib/data';
 
 const STAGE_FILTERS = ['All', 'Sourced', 'Screening', 'Interviewed', 'Offered', 'Placed', '⚠️ Alerts'] as const;
