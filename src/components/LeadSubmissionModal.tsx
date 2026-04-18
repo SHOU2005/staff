@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import { addCandidate, checkDuplicate, getSettings, type Stage } from '../lib/data';
+import { onLeadSubmitted } from '../lib/community';
 import { useRole } from '../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
@@ -10,7 +11,7 @@ interface Props {
 }
 
 export default function LeadSubmissionModal({ onClose, onSuccess }: Props) {
-  const { captainId } = useRole();
+  const { captainId, captainName } = useRole();
   const settings = getSettings();
 
   const [name, setName] = useState('');
@@ -72,6 +73,8 @@ export default function LeadSubmissionModal({ onClose, onSuccess }: Props) {
       flagged: false,
       archived: false,
     });
+    // Auto-create/update community
+    onLeadSubmitted(candidate, captainId, captainName || 'Captain');
     setSubmittedCandidate(candidate);
     setSubmitted(true);
     toast.success('Lead submitted!');
