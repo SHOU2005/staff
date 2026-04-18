@@ -132,9 +132,25 @@ ON CONFLICT (id) DO NOTHING;
 -- ────────────────────────────────────────────────────────────────
 INSERT INTO app_users (phone, password, name, role, captain_id)
 VALUES
-  ('9000000000', 'c2hvdXJ5YTEyMw==',  'Shourya Pandey', 'captain', 'captain_shourya_001'),
-  ('9205617375', 'QWRtaW5AMTIz',       'Admin',          'ops',      NULL)
+  ('9205617375', 'c2hvdXJ5YTEyMw==',  'Shourya Pandey', 'captain', 'captain_shourya_001'),
+  ('9205617376', 'QWRtaW5AMTIz',       'Admin',          'ops',      NULL)
 ON CONFLICT (phone) DO NOTHING;
+
+-- ────────────────────────────────────────────────────────────────
+-- REASSIGN: Move ops_001 candidates to Shourya Pandey
+-- Also reassigns any dummy captain_001..005 leftovers
+-- ────────────────────────────────────────────────────────────────
+UPDATE pipeline_candidates
+SET referred_by = 'captain_shourya_001'
+WHERE referred_by = 'ops_001'
+   OR referred_by IN ('captain_001','captain_002','captain_003','captain_004','captain_005')
+   OR referred_by IS NULL;
+
+-- Also fix the legacy candidates table if it still exists
+UPDATE candidates
+SET added_by = '255dd2ab-cd76-4838-a0a1-8028a6fdf3a1'  -- Admin UUID in legacy table
+WHERE added_by IS NULL;
+
 
 -- ────────────────────────────────────────────────────────────────
 -- VERIFY: Check which tables are in realtime publication

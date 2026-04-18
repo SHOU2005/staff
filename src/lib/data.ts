@@ -873,7 +873,7 @@ export function initSeedData() {
 
 // ─── MIGRATION: SHOURYA PANDEY ─────────────────────────────────
 export function applyShouryaPandeyMigration() {
-  if (localStorage.getItem('switch_migration_shourya_2')) return;
+  if (localStorage.getItem('switch_migration_shourya_3')) return;
   
   const toRemoveNames = ['Priya Sharma', 'Ravi Kumar', 'Anjali Singh', 'Mohit Verma', 'Sunita Yadav'];
   let captains = getCaptains();
@@ -891,11 +891,14 @@ export function applyShouryaPandeyMigration() {
   // Remove candidates sourced by the deleted captains
   candidates = candidates.filter(cand => !toRemoveIds.includes(cand.referredBy));
   
-  // Assign all remaining candidates to Shourya Pandey
-  candidates = candidates.map(cand => ({ ...cand, referredBy: shouryaId }));
+  // Assign remaining + ops_001-referred candidates to Shourya Pandey
+  candidates = candidates.map(cand => ({
+    ...cand,
+    referredBy: (cand.referredBy === 'ops_001' || !cand.referredBy) ? shouryaId : shouryaId,
+  }));
   saveCandidates(candidates);
   
-  localStorage.setItem('switch_migration_shourya_2', 'true');
+  localStorage.setItem('switch_migration_shourya_3', 'true');
 }
 
 // ─── SUPABASE PULL ─────────────────────────────────────────────
