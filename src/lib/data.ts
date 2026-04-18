@@ -2,6 +2,7 @@
 //  Switch Captain — Data Layer v2.0
 //  localStorage-based: auth + pipeline + earnings + analytics
 // ───────────────────────────────────────────────────────────
+import { supabase } from './supabase';
 
 // ─── STORAGE KEYS ────────────────────────────────────────────
 export const KEYS = {
@@ -790,7 +791,12 @@ export function initSeedData() {
     { id:'cand_src008', name:'Suman Rani',    mobile:'9708888888', jobType:'Security Guard', location:'DLF Phase 1',   currentStage:'Sourced', referredBy:'captain_003', submittedAt:new Date().toISOString(), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:new Date().toISOString(),movedBy:'captain_003',note:''}], notes:[], flagged:false, archived:false },
   ];
 
+  if (getCandidates().length === 0) {
+    saveCandidates([...placed, ...offered, ...interviewed, ...screening, ...sourced]);
+  }
+
   const jobs: Job[] = [
+
     { id:'job_001', role:'Security Guard', location:'DLF Phase 2',  salaryRange:'₹12,000–₹15,000/mo', urgency:'high',   postedAt:dAgo(2), active:true, description:'Need 3 guards immediately for residential complex',  openings:3, filled:0 },
     { id:'job_002', role:'Housekeeping',   location:'Cyber City',    salaryRange:'₹10,000–₹13,000/mo', urgency:'medium', postedAt:dAgo(5), active:true, description:'Premium office housekeeping, 2 posts available',        openings:2, filled:0 },
     { id:'job_003', role:'Driver',         location:'Udyog Vihar',   salaryRange:'₹14,000–₹18,000/mo', urgency:'high',   postedAt:dAgo(1), active:true, description:'Corporate driver needed, Mon–Sat, company vehicle',      openings:1, filled:0 },
@@ -813,4 +819,61 @@ export function initSeedData() {
   saveJobs(jobs);
   saveNotifications(notifications);
   localStorage.setItem(KEYS.seedDone, 'true');
+}
+
+// ─── LEGACY SUPABASE IMPORT ────────────────────────────────────
+export async function importLegacyCandidatesFromSupabase() {
+  if (localStorage.getItem('switch_legacy_imported')) return;
+  try {
+    const { data: legacyCands, error } = await supabase.from('candidates').select('*');
+    if (error || !legacyCands) return;
+    
+    const existing = getCandidates();
+    const imported: Candidate[] = legacyCands.map(sb => {
+      const stageMap: Record<string, Stage> = {
+        'Joined': 'Placed',
+        'Interview Scheduled': 'Interviewed',
+        'Offer Pending': 'Offered',
+      };
+      const stage = stageMap[sb.status] || 'Sourced';
+      const isPlaced = stage === 'Placed';
+      
+      let gDate = null;
+      if (isPlaced && sb.joining_date) {
+        const d = new Date(sb.joining_date);
+        d.setDate(d.getDate() + 30);
+        gDate = d.toISOString();
+      }
+
+      return {
+        id: `cand_legacy_${sb.id}`,
+        name: sb.name || 'Unknown',
+        mobile: sb.phone || '0000000000',
+        jobType: sb.role || 'Other',
+        location: sb.location || 'Other',
+        currentStage: stage,
+        referredBy: 'ops_001', // assigned to Ops Team
+        submittedAt: sb.created_at || new Date().toISOString(),
+        placedAt: isPlaced ? (sb.joining_date || sb.created_at) : null,
+        guaranteeExpiresAt: gDate,
+        replacementNeeded: false,
+        payout: { amount: 300, status: isPlaced ? 'paid' : 'pending', paidAt: isPlaced ? (sb.joining_date || sb.created_at) : null },
+        timeline: [{ stage: stage, movedAt: sb.created_at || new Date().toISOString(), movedBy: 'ops_001', note: 'Imported from legacy system' }],
+        notes: sb.notes ? [{ text: sb.notes, addedBy: 'ops_001', addedAt: sb.created_at || new Date().toISOString() }] : [],
+        flagged: false,
+        archived: false
+      };
+    });
+
+    if (imported.length > 0) {
+      // Filter out existing candidates by mobile to avoid duplicates if re-run
+      const existingMobiles = new Set(existing.map(c => c.mobile.replace(/\D/g, '')));
+      const newImport = imported.filter(c => !existingMobiles.has(c.mobile.replace(/\D/g, '')));
+      
+      saveCandidates([...newImport, ...existing]);
+    }
+    localStorage.setItem('switch_legacy_imported', 'true');
+  } catch (err) {
+    console.error('Import failed', err);
+  }
 }
