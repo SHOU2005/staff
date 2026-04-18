@@ -4,11 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/switch-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#111B21" />
-    <meta name="description" content="Switch Staff System - Internal hiring team management portal" />
+    <meta name="theme-color" content="#2EA86A" />
+    <meta name="description" content="Switch Captain — Gurgaon's #1 blue-collar hiring platform for field agents. Submit leads, track candidates, and earn on every placement." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Switch Staff System</title>
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Switch Captain" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Switch Captain — Blue-Collar Hiring Platform</title>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
