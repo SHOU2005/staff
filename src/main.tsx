@@ -4,14 +4,15 @@ import "./index.css";
 import App from "./App.tsx";
 import { initSeedData, applyShouryaPandeyMigration } from "./lib/data";
 import { initCommunitySeedData } from "./lib/community";
-import { initSocialSeedData, getOpsProfile } from "./lib/social";
+import { initSocialSeedIfNeeded } from "./lib/social";
 
-// Initialize app data
+// Sync init for localStorage fallback
 initSeedData();
 applyShouryaPandeyMigration();
 initCommunitySeedData();
-initSocialSeedData();
-getOpsProfile(); // ensure ops profile always exists
+
+// Async init — seeds Supabase social tables if empty
+initSocialSeedIfNeeded().catch(console.warn);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

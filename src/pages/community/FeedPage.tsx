@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, Loader2 } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
-  getSocialFeed, toggleReaction, getUserReactionForPost, pinSocialPost,
+  fetchFeed, toggleReaction, getUserReaction, pinPost,
   reportPost, deletePost, timeAgoHindi, POST_TYPE_META, getAvatarColors,
-  getInitials, getRegColorStyle, getMemberForUser, type SocialPost, type SocialMember,
-  type PostType,
+  getInitials, getRegColorStyle, fetchMemberByCaptain, subscribeToSocialFeed,
+  type SocialPost, type SocialMember, type PostType,
 } from '../../lib/social';
 import toast from 'react-hot-toast';
 
 const FEED_TABS: { value: PostType | 'all'; label: string }[] = [
-  { value: 'all',            label: 'सभी पोस्ट' },
-  { value: 'job_available',  label: 'नौकरी है' },
-  { value: 'looking_for_job',label: 'नौकरी चाहिए' },
-  { value: 'tip',            label: 'सुझाव' },
-  { value: 'success_story',  label: 'सफलता' },
+  { value: 'all',             label: 'सभी पोस्ट' },
+  { value: 'job_available',   label: 'नौकरी है' },
+  { value: 'looking_for_job', label: 'नौकरी चाहिए' },
+  { value: 'tip',             label: 'सुझाव' },
+  { value: 'success_story',   label: 'सफलता' },
 ];
 
 export default function CommunityFeedPage() {
@@ -24,38 +24,46 @@ export default function CommunityFeedPage() {
   const [tab, setTab] = useState<PostType | 'all'>('all');
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [me, setMe] = useState<SocialMember | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(() => {
-    setPosts(getSocialFeed(tab === 'all' ? undefined : tab));
-    const m = getMemberForUser(captainId || null, null);
-    setMe(m || null);
+  const load = useCallback(async () => {
+    const [feedPosts, myProfile] = await Promise.all([
+      fetchFeed(tab === 'all' ? undefined : tab),
+      captainId ? fetchMemberByCaptain(captainId) : Promise.resolve(null),
+    ]);
+    setPosts(feedPosts);
+    setMe(myProfile);
+    setLoading(false);
   }, [tab, captainId]);
 
-  useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    window.addEventListener('switch_data_update', load);
-    return () => window.removeEventListener('switch_data_update', load);
+    setLoading(true);
+    load();
   }, [load]);
 
-  const handleReact = (postId: string, reaction: 'like' | 'fire' | 'clap') => {
+  // Realtime subscription
+  useEffect(() => {
+    const unsub = subscribeToSocialFeed(() => load());
+    return unsub;
+  }, [load]);
+
+  const handleReact = async (postId: string, reaction: 'like' | 'fire' | 'clap') => {
     if (!me) { toast.error('Login required'); return; }
-    toggleReaction(postId, me.id, reaction);
+    await toggleReaction(postId, me.id, reaction);
     load();
   };
 
-  const handleDelete = (postId: string) => {
-    deletePost(postId);
+  const handleDelete = async (postId: string) => {
+    await deletePost(postId);
     load();
     toast.success('Post हटा दी गई');
   };
 
-  const handlePin = (postId: string, pinned: boolean) => {
-    pinSocialPost(postId, !pinned);
+  const handlePin = async (postId: string, pinned: boolean) => {
+    await pinPost(postId, !pinned);
     load();
     toast.success(!pinned ? 'Post पिन हो गई!' : 'Pin हटा दिया');
   };
-
-  const feedPosts = posts;
 
   return (
     <div style={{ paddingBottom: 8 }}>
@@ -75,7 +83,7 @@ export default function CommunityFeedPage() {
         </div>
       </div>
 
-      {/* Tab bar */}
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, overflowX: 'auto', borderBottom: '1px solid var(--neutral-200)', marginBottom: 14, paddingBottom: 0 }}>
         {FEED_TABS.map(t => (
           <button key={t.value} onClick={() => setTab(t.value)} style={{
@@ -90,8 +98,15 @@ export default function CommunityFeedPage() {
         ))}
       </div>
 
-      {/* Feed */}
-      {feedPosts.length === 0 && (
+      {/* Loading */}
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-green)' }} />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && posts.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--neutral-400)' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>अभी तक कोई पोस्ट नहीं</div>
@@ -102,21 +117,24 @@ export default function CommunityFeedPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {feedPosts.map(post => (
-          <PostCard
-            key={post.id}
-            post={post}
-            myId={me?.id || ''}
-            myRole={role || 'captain'}
-            onReact={handleReact}
-            onDelete={handleDelete}
-            onPin={handlePin}
-            onViewDetail={() => navigate(`/captain/community/post/${post.id}`)}
-            onViewMember={() => navigate(`/captain/community/member/${post.authorId}`)}
-          />
-        ))}
-      </div>
+      {/* Feed */}
+      {!loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {posts.map(post => (
+            <PostCard
+              key={post.id}
+              post={post}
+              myId={me?.id || ''}
+              myRole={role || 'captain'}
+              onReact={handleReact}
+              onDelete={handleDelete}
+              onPin={handlePin}
+              onViewDetail={() => navigate(`/captain/community/post/${post.id}`)}
+              onViewMember={() => navigate(`/captain/community/member/${post.authorId}`)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -130,18 +148,21 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
   onViewMember?: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
-  const myReaction = getUserReactionForPost(post.id, myId);
+  const [myReaction, setMyReaction] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (myId) getUserReaction(post.id, myId).then(setMyReaction);
+  }, [post.id, myId]);
+
   const typeMeta = POST_TYPE_META[post.type];
   const avatarCols = getAvatarColors(post.authorRegNumber);
   const regStyle = getRegColorStyle(post.authorRole);
-
   const isAuthor = post.authorId === myId;
   const canModerate = myRole === 'captain' || myRole === 'ops';
-
   const waShare = `https://wa.me/?text=${encodeURIComponent(`*Switch Community*\n${post.authorName}: ${post.content}\n\nSwitch app se join karein!`)}`;
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${post.pinned ? 'var(--brand-green)' : 'var(--neutral-200)'}`, borderRadius: 16, padding: '14px', position: 'relative', borderLeft: post.pinned ? `4px solid var(--brand-green-mid)` : undefined }}>
+    <div style={{ background: '#fff', border: `1px solid ${post.pinned ? 'var(--brand-green)' : 'var(--neutral-200)'}`, borderRadius: 16, padding: '14px', position: 'relative', borderLeft: post.pinned ? '4px solid var(--brand-green-mid)' : undefined }}>
       {/* Author row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
         <button onClick={onViewMember} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
@@ -153,7 +174,6 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <button onClick={onViewMember} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 700, color: 'var(--neutral-900)' }}>{post.authorName}</button>
             {post.pinned && <span style={{ fontSize: 11 }}>📌</span>}
-            {/* Type badge */}
             <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, background: typeMeta.bg, color: typeMeta.color, fontWeight: 700, marginLeft: 'auto' }}>
               {typeMeta.emoji} {typeMeta.label}
             </span>
@@ -165,7 +185,6 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
             <span style={{ fontSize: 11, color: 'var(--neutral-400)' }}>· {timeAgoHindi(post.postedAt)}</span>
           </div>
         </div>
-        {/* 3-dot menu */}
         {(isAuthor || canModerate) && (
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowMenu(!showMenu)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 18, color: 'var(--neutral-400)', lineHeight: 1 }}>⋯</button>
@@ -185,7 +204,7 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
         {post.content}
       </p>
 
-      {/* Job details card */}
+      {/* Job details */}
       {post.jobDetails && (
         <div style={{ background: 'var(--brand-green-light)', borderRadius: 12, padding: '10px 12px', marginBottom: 10 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--brand-green)' }}>{post.jobDetails.role} — {post.jobDetails.location}</div>
@@ -199,7 +218,7 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
         </div>
       )}
 
-      {/* Reaction + action bar */}
+      {/* Reaction bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         {(['like', 'fire', 'clap'] as const).map(r => {
           const emoji = r === 'like' ? '👍' : r === 'fire' ? '🔥' : '👏';

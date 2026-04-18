@@ -1,18 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
-  getMemberForUser, createSocialPost, getAvatarColors, getInitials,
-  getRegColorStyle, type PostType,
+  fetchMemberByCaptain, createPost, getAvatarColors, getInitials,
+  getRegColorStyle, type PostType, type SocialMember,
 } from '../../lib/social';
 import { getSettings } from '../../lib/data';
 import toast from 'react-hot-toast';
+import { ChevronDown, Loader2 } from 'lucide-react';
 
 const TYPES: { value: PostType; emoji: string; label: string; labelEn: string }[] = [
-  { value: 'job_available',   emoji: '💼', label: 'नौकरी है',       labelEn: 'Job available'   },
-  { value: 'looking_for_job', emoji: '🙋', label: 'नौकरी चाहिए',  labelEn: 'Job seeking'      },
-  { value: 'tip',             emoji: '💡', label: 'सुझाव / टिप्स', labelEn: 'Share a tip'      },
+  { value: 'job_available',   emoji: '💼', label: 'नौकरी है',        labelEn: 'Job available'  },
+  { value: 'looking_for_job', emoji: '🙋', label: 'नौकरी चाहिए',   labelEn: 'Job seeking'     },
+  { value: 'tip',             emoji: '💡', label: 'सुझाव / टिप्स',  labelEn: 'Share a tip'     },
   { value: 'success_story',   emoji: '⭐', label: 'सफलता की कहानी', labelEn: 'Success story'   },
 ];
 
@@ -27,24 +27,35 @@ export default function ComposePage() {
   const [jobLocation, setJobLocation] = useState('');
   const [jobSalary, setJobSalary] = useState('');
   const [jobWA, setJobWA] = useState('');
+  const [me, setMe] = useState<SocialMember | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const me = getMemberForUser(captainId || null, null);
+  useEffect(() => {
+    if (captainId) fetchMemberByCaptain(captainId).then(setMe);
+  }, [captainId]);
+
   const MAX = 500;
   const remaining = MAX - content.length;
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!content.trim()) { toast.error('कुछ लिखें पहले!'); return; }
     if (!me) { toast.error('Profile नहीं मिली'); return; }
+    setSubmitting(true);
     const jobDetails = type === 'job_available' && jobRole && jobLocation
       ? { role: jobRole, location: jobLocation, salary: jobSalary, contactWhatsApp: jobWA }
-      : null;
-    createSocialPost(me, type!, content.trim(), jobDetails || undefined);
-    toast.success('आपकी पोस्ट हो गई! ✓');
-    navigate('/captain/community');
+      : undefined;
+    const result = await createPost(me, type!, content.trim(), jobDetails);
+    setSubmitting(false);
+    if (result) {
+      toast.success('आपकी पोस्ट हो गई! ✓');
+      navigate('/captain/community');
+    } else {
+      toast.error('Post नहीं हो सकी, दोबारा कोशिश करें');
+    }
   };
 
   const avatarCols = me ? getAvatarColors(me.regNumber) : { bg: '#E8F5EE', text: '#1A7A4A' };
-  const regStyle = me ? getRegColorStyle(me.role) : { border: '#DC2626', color: '#DC2626' };
+  const regStyle   = me ? getRegColorStyle(me.role)     : { border: '#DC2626', color: '#DC2626' };
 
   const selectStyle = {
     width: '100%', height: 44, padding: '0 12px', borderRadius: 12,
@@ -63,7 +74,7 @@ export default function ComposePage() {
         </div>
       </div>
 
-      {/* Step 1 — pick type */}
+      {/* Step 1 — type picker */}
       {step === 1 && (
         <>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--neutral-700)', marginBottom: 16 }}>आप क्या शेयर करना चाहते हैं?</div>
@@ -73,11 +84,7 @@ export default function ComposePage() {
                 display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
                 padding: '18px 16px', borderRadius: 16, border: '1.5px solid var(--neutral-200)',
                 background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                transition: 'border-color 0.2s, box-shadow 0.2s',
-              }}
-                onPointerDown={e => (e.currentTarget.style.borderColor = 'var(--brand-green-mid)')}
-                onPointerUp={e => (e.currentTarget.style.borderColor = 'var(--neutral-200)')}
-              >
+              }}>
                 <div style={{ fontSize: 32 }}>{t.emoji}</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--neutral-900)' }}>{t.label}</div>
                 <div style={{ fontSize: 11, color: 'var(--neutral-500)' }}>{t.labelEn}</div>
@@ -87,7 +94,7 @@ export default function ComposePage() {
         </>
       )}
 
-      {/* Step 2 — write post */}
+      {/* Step 2 — compose */}
       {step === 2 && type && (
         <>
           {/* Author chip */}
@@ -103,27 +110,20 @@ export default function ComposePage() {
                 </span>
               </div>
               <div style={{ marginLeft: 'auto', fontSize: 11, padding: '4px 10px', borderRadius: 99, background: '#EEEDFE', color: '#534AB7', fontWeight: 700 }}>
-                {TYPES.find(t => t.value === type)?.emoji} {TYPES.find(t => t.value === type)?.label}
+                {TYPES.find(t2 => t2.value === type)?.emoji} {TYPES.find(t2 => t2.value === type)?.label}
               </div>
             </div>
           )}
 
-          {/* Textarea */}
           <div style={{ marginBottom: 16 }}>
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value.slice(0, MAX))}
-              placeholder="आप क्या share करना चाहते हैं?"
-              rows={5}
-              lang="hi"
-              style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1.5px solid var(--neutral-200)', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.6, boxSizing: 'border-box', color: 'var(--neutral-900)' }}
-            />
+            <textarea value={content} onChange={e => setContent(e.target.value.slice(0, MAX))} placeholder="आप क्या share करना चाहते हैं?"
+              rows={5} lang="hi" style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1.5px solid var(--neutral-200)', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.6, boxSizing: 'border-box', color: 'var(--neutral-900)' }} />
             <div style={{ textAlign: 'right', fontSize: 11, marginTop: 4, color: remaining < 10 ? '#DC2626' : remaining < 50 ? '#D97706' : 'var(--neutral-400)', fontWeight: 500 }}>
               {remaining} शब्द बचे
             </div>
           </div>
 
-          {/* Job details (only for job_available) */}
+          {/* Job details */}
           {type === 'job_available' && (
             <div style={{ background: 'var(--brand-green-light)', borderRadius: 14, padding: '14px', marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--brand-green)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>नौकरी की जानकारी:</div>
@@ -160,11 +160,10 @@ export default function ComposePage() {
             </div>
           )}
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => navigate('/captain/community')} style={{ flex: 1, height: 50, borderRadius: 14, border: '1.5px solid var(--neutral-200)', background: 'transparent', color: 'var(--neutral-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button onClick={handlePost} disabled={!content.trim()} style={{ flex: 2, height: 50, borderRadius: 14, border: 'none', background: content.trim() ? 'var(--brand-green-mid)' : 'var(--neutral-200)', color: content.trim() ? '#fff' : 'var(--neutral-400)', fontSize: 15, fontWeight: 800, cursor: content.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-              Post करें →
+            <button onClick={handlePost} disabled={!content.trim() || submitting} style={{ flex: 2, height: 50, borderRadius: 14, border: 'none', background: content.trim() && !submitting ? 'var(--brand-green-mid)' : 'var(--neutral-200)', color: content.trim() && !submitting ? '#fff' : 'var(--neutral-400)', fontSize: 15, fontWeight: 800, cursor: content.trim() && !submitting ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {submitting ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Posting...</> : 'Post करें →'}
             </button>
           </div>
         </>
