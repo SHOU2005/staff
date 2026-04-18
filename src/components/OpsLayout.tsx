@@ -4,12 +4,13 @@ import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Building2 } from 'lu
 import { getPayoutRequests, getGuaranteeAlerts } from '../lib/data';
 
 const navItems = [
-  { to:'/ops/dashboard',   icon: LayoutDashboard, label:'Home'      },
-  { to:'/ops/pipeline',    icon: Layers,          label:'Pipeline'  },
-  { to:'/ops/communities', icon: Building2,        label:'Community' },
-  { to:'/ops/payouts',     icon: IndianRupee,      label:'Payouts'   },
-  { to:'/ops/guarantee',   icon: ShieldAlert,      label:'Risk'      },
+  { to:'/ops/dashboard', icon: LayoutDashboard, label:'Home'      },
+  { to:'/ops/pipeline',  icon: Layers,          label:'Pipeline'  },
+  { to:'/ops/community', icon: Building2,        label:'Community' },
+  { to:'/ops/payouts',   icon: IndianRupee,      label:'Payouts'   },
+  { to:'/ops/guarantee', icon: ShieldAlert,      label:'Risk'      },
 ];
+
 
 export default function OpsLayout({ children }: { children: ReactNode }) {
   const pendingPayouts = getPayoutRequests().filter(r => r.status === 'pending').length;

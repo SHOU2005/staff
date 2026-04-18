@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { X, ChevronDown } from 'lucide-react';
-import { addCandidate, checkDuplicate, getSettings, type Stage } from '../lib/data';
+import { addCandidate, checkDuplicate, getSettings, getCandidates, type Stage } from '../lib/data';
 import { onLeadSubmitted } from '../lib/community';
+import { autoCreateMemberProfile } from '../lib/social';
 import { useRole } from '../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
@@ -75,6 +76,10 @@ export default function LeadSubmissionModal({ onClose, onSuccess }: Props) {
     });
     // Auto-create/update community
     onLeadSubmitted(candidate, captainId, captainName || 'Captain');
+    // Auto-create social member profile
+    const allCandidates = getCandidates();
+    const idx = allCandidates.findIndex(c => c.id === candidate.id);
+    autoCreateMemberProfile(candidate, idx >= 0 ? idx : allCandidates.length - 1);
     setSubmittedCandidate(candidate);
     setSubmitted(true);
     toast.success('Lead submitted!');
