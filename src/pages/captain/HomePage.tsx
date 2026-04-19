@@ -5,7 +5,7 @@ import {
   getCandidates, getJobs, getCaptainStats, getLeaderboard, getCaptainAchievements,
   getTierConfig, getTierLabel, getEarningRateForPlacementNumber,
   checkFollowUpReminders, requestNotificationPermission, getFollowUpsDue,
-  setLeadExtra, getLeadExtra,
+  setLeadExtra,
   type Candidate, type Job,
   getInitials, timeAgo,
 } from '../../lib/data';

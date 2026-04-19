@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Users, Loader2, PenLine } from 'lucide-react';
+import { Briefcase, Users, PenLine } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
   fetchFeed, toggleReaction, getUserReaction, pinPost,
@@ -203,8 +203,6 @@ export function PostCard({ post, myId, myRole, onReact, onDelete, onPin, onViewD
   const isAuthor   = post.authorId === myId;
   const canMod     = myRole === 'ops';
   const waShare    = `https://wa.me/?text=${encodeURIComponent(`*Switch Community*\n${post.authorName}: ${post.content}\n\nSwitch app se join karein!`)}`;
-
-  const totalReactions = post.reactions.like + post.reactions.fire + post.reactions.clap;
 
   return (
     <div

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, MapPin, ChevronDown, StickyNote, Calendar, Briefcase } from 'lucide-react';
+import { ArrowLeft, MapPin, ChevronDown, StickyNote, Calendar, Briefcase } from 'lucide-react';
 import {
   addCandidate, getSettings, getJobs, getEarningRateForPlacementNumber,
-  getCaptainStats, setLeadExtra, type Job,
+  getCaptainStats, setLeadExtra,
 } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
 import toast from 'react-hot-toast';
@@ -121,7 +121,7 @@ export default function AddLeadPage() {
     e.target.style.boxShadow   = 'none';
   };
 
-  const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  const Section = ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => (
     <div style={{ marginBottom: 20 }}>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 9 }}>{label}</label>
       {children}
