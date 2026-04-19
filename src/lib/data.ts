@@ -305,14 +305,14 @@ export async function registerOps(
   if (code !== settings.opsCode) return { ok: false, error: 'Invalid ops access code' };
   const clean = phone.replace(/\D/g, '');
   
-  const { data: existing } = await supabase.from('app_users').select('id').eq('phone', clean).eq('role', 'ops').single();
-  if (existing) return { ok: false, error: 'Ops account already exists' };
+  const { data: existing } = await supabase.from('app_users').select('id, role').eq('phone', clean).single();
+  if (existing) return { ok: false, error: existing.role === 'ops' ? 'Ops account already exists for this number' : 'Phone number already registered' };
 
   const { data: user, error } = await supabase.from('app_users').insert({
     phone: clean, password: encodePassword(password), name, role: 'ops', captain_id: null, active: true
   }).select().single();
 
-  if (error) return { ok: false, error: 'Database error creating user' };
+  if (error) { console.error('registerOps error:', error); return { ok: false, error: error.message || 'Database error creating user' }; }
 
   const session: Session = { userId: user.id, captainId: 'ops_001', role: 'ops', name, phone: clean, loginAt: new Date().toISOString() };
   saveSession(session);

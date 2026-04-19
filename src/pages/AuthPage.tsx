@@ -201,10 +201,6 @@ export default function AuthPage() {
                 <button onClick={() => setScreen('captain_register')} style={{ fontSize:13, fontWeight:700, color:'var(--brand-green)', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>Create account →</button>
               </div>
 
-              <div style={{ marginTop:16, padding:'12px 14px', borderRadius:12, background:'var(--brand-green-light)', border:'1px solid rgba(46,168,106,0.2)' }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'var(--brand-green)', marginBottom:4 }}>Demo Login</div>
-                <div style={{ fontSize:12, color:'var(--neutral-700)', fontFamily:'DM Mono, monospace' }}>📞 9812345678 · 🔑 priya@123</div>
-              </div>
             </>
           )}
 
@@ -294,10 +290,6 @@ export default function AuthPage() {
                 <button onClick={() => setScreen('ops_register')} style={{ fontSize:13, fontWeight:700, color:'#D4A017', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>First time? Register →</button>
               </div>
 
-              <div style={{ marginTop:16, padding:'12px 14px', borderRadius:12, background:'var(--accent-gold-light)', border:'1px solid rgba(212,160,23,0.2)' }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'#D4A017', marginBottom:4 }}>Demo Login</div>
-                <div style={{ fontSize:12, color:'var(--neutral-700)', fontFamily:'DM Mono, monospace' }}>📞 9999999999 · 🔑 switch@ops</div>
-              </div>
             </>
           )}
 
