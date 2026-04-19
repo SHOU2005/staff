@@ -49,7 +49,7 @@ function JobCard({ job, onEdit, onToggle, ownerName }: CardProps) {
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--brand-green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <MapPin size={11} /> {job.location}
           </a>
-          {ownerName && <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2, fontWeight: 600 }}>🏢 {ownerName}</div>}
+          {ownerName && <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2, fontWeight: 600 }}>🏢 {ownerName}{job.billingRate ? ` · ₹${job.billingRate.toLocaleString('en-IN')}/placement` : ''}</div>}
         </div>
         <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800, background: urg.bg, color: urg.color, flexShrink: 0, marginLeft: 8 }}>
           {job.urgency.toUpperCase()}
@@ -143,6 +143,7 @@ export default function OpsJobsPage() {
         shift: form.shift, requirements: form.requirements,
         deadline: form.deadline, contact: form.contact,
         locationLink: form.locationLink,
+        billingRate: form.billingRate,
       });
       toast.success('Job posted!');
       setAdding(false);
@@ -218,6 +219,18 @@ export default function OpsJobsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div><Lbl text="Fill By Date" /><input type="date" value={form.deadline || ''} onChange={e => set('deadline', e.target.value)} style={inputStyle} {...focusHandlers} /></div>
             <div><Lbl text="Contact Phone" /><input type="tel" value={form.contact || ''} onChange={e => set('contact', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit number" style={{ ...inputStyle, fontFamily: 'DM Mono, monospace' }} {...focusHandlers} /></div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <Lbl text="Owner Billing Rate (₹ per candidate placed)" />
+            <input
+              type="number"
+              value={form.billingRate || ''}
+              onChange={e => set('billingRate', parseInt(e.target.value) || undefined)}
+              placeholder="5000"
+              style={{ ...inputStyle, fontFamily: 'DM Mono, monospace' }}
+              {...focusHandlers}
+            />
           </div>
 
           {owners.length > 0 && (

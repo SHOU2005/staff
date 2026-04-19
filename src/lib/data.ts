@@ -118,6 +118,7 @@ export interface Job {
   contact?:      string;
   locationLink?: string;
   ownerId?:      string;
+  billingRate?:  number;
 }
 
 export interface Notification {
@@ -242,7 +243,13 @@ async function syncCaptainsFromSupabase() {
 async function syncJobsFromSupabase() {
   const { data } = await supabase.from('jobs').select('*').order('posted_at', { ascending: false });
   if (!data) return;
+  const existing = getJobs();
+  const existingMap: Record<string, Job> = {};
+  existing.forEach(j => { existingMap[j.id] = j; });
   const mapped: Job[] = data.map(r => ({
+    // Preserve locally-stored extra fields (shift, contact, ownerId, billingRate, etc.)
+    ...existingMap[r.id],
+    // Authoritative base fields from Supabase
     id: r.id, role: r.role, location: r.location, salaryRange: r.salary_range || '',
     urgency: r.urgency as Urgency, postedAt: r.posted_at, active: r.active,
     description: r.description || '', openings: r.openings, filled: r.filled,
@@ -565,8 +572,9 @@ export function moveCandidateStage(
         updateJob(job.id, { filled: (job.filled || 0) + 1 });
         // Bill the owner if job has one assigned
         if (job.ownerId) {
+          const ownerFee = job.billingRate || 5000;
           updateOwner(job.ownerId, {
-            pendingAmount: (getOwners().find(o => o.id === job.ownerId)?.pendingAmount || 0) + payoutAmount,
+            pendingAmount: (getOwners().find(o => o.id === job.ownerId)?.pendingAmount || 0) + ownerFee,
           });
         }
       }

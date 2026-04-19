@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Building2 } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Building2, Settings } from 'lucide-react';
 import { getPayoutRequests, getGuaranteeAlerts } from '../lib/data';
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
 
 
 export default function OpsLayout({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const pendingPayouts = getPayoutRequests().filter(r => r.status === 'pending').length;
   const criticalGuarantees = getGuaranteeAlerts().filter(g => g.daysLeft >= 0 && g.daysLeft <= 3).length;
 
@@ -39,9 +40,9 @@ export default function OpsLayout({ children }: { children: ReactNode }) {
               {pendingPayouts} payout{pendingPayouts>1?'s':''}
             </div>
           )}
-          <div style={{ fontSize:12, color:'var(--neutral-500)', fontWeight:600 }}>
-            {new Date().toLocaleDateString('en-IN',{ day:'numeric', month:'short' })}
-          </div>
+          <button onClick={() => navigate('/ops/settings')} style={{ width:34, height:34, borderRadius:10, border:'1.5px solid var(--neutral-200)', background:'var(--neutral-50)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+            <Settings size={16} color="var(--neutral-500)" />
+          </button>
         </div>
       </div>
 
