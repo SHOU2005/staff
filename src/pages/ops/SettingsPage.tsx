@@ -4,6 +4,19 @@ import { getSettings, saveSettings, getCaptains, saveCaptains, getCandidates, ty
 import { useRole } from '../../contexts/RoleContext';
 import toast from 'react-hot-toast';
 
+function Section({ id, title, activeId, onToggle, children }: { id: string; title: string; activeId: string | null; onToggle: (id: string) => void; children: React.ReactNode }) {
+  const isActive = activeId === id;
+  return (
+    <div style={{ background:'#fff', border:'1px solid var(--neutral-200)', borderRadius:18, overflow:'hidden', marginBottom:12 }}>
+      <button onClick={() => onToggle(id)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'15px 16px', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>
+        <span style={{ fontSize:14, fontWeight:700, color:'var(--neutral-900)' }}>{title}</span>
+        <ChevronRight size={16} color="var(--neutral-500)" style={{ transform: isActive ? 'rotate(90deg)' : 'none', transition:'transform 0.2s' }} />
+      </button>
+      {isActive && <div style={{ borderTop:'1px solid var(--neutral-200)', padding:16 }}>{children}</div>}
+    </div>
+  );
+}
+
 export default function OpsSettingsPage() {
   const { clearRole, captainName } = useRole();
   const [settings, setSettings] = useState<Settings>(getSettings());
@@ -75,15 +88,6 @@ export default function OpsSettingsPage() {
     onBlur: (e:any)=>{ e.target.style.borderColor='var(--neutral-200)'; },
   };
 
-  const Section = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (
-    <div style={{ background:'#fff', border:'1px solid var(--neutral-200)', borderRadius:18, overflow:'hidden', marginBottom:12 }}>
-      <button onClick={() => setActiveSection(activeSection===id?null:id)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'15px 16px', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>
-        <span style={{ fontSize:14, fontWeight:700, color:'var(--neutral-900)' }}>{title}</span>
-        <ChevronRight size={16} color="var(--neutral-500)" style={{ transform:activeSection===id?'rotate(90deg)':'none', transition:'transform 0.2s' }} />
-      </button>
-      {activeSection===id && <div style={{ borderTop:'1px solid var(--neutral-200)', padding:16 }}>{children}</div>}
-    </div>
-  );
 
   return (
     <div>
@@ -93,7 +97,7 @@ export default function OpsSettingsPage() {
         <div style={{ fontSize:13, color:'var(--neutral-500)', marginTop:4 }}>Logged in as <b>{captainName}</b></div>
       </div>
 
-      <Section id="fee" title="💰 Fee & Guarantee">
+      <Section id="fee" title="💰 Fee & Guarantee" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         <div style={{ marginBottom:12 }}>
           <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--neutral-500)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>Base per-hire fee (₹)</label>
           <input type="number" value={settings.perHireFee} onChange={e=>setSettings({...settings,perHireFee:Number(e.target.value)})} style={inputStyle} {...focusProps} />
@@ -130,7 +134,7 @@ export default function OpsSettingsPage() {
         <button onClick={handleSaveSettings} style={{ width:'100%', height:46, borderRadius:12, border:'none', background:'var(--brand-green-mid)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Save Settings</button>
       </Section>
 
-      <Section id="jobtypes" title="🔧 Job Types">
+      <Section id="jobtypes" title="🔧 Job Types" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:12 }}>
           {settings.jobTypes.map(jt => (
             <div key={jt} style={{ display:'flex', alignItems:'center', gap:6, background:'var(--brand-green-light)', border:'1px solid rgba(46,168,106,0.2)', borderRadius:99, padding:'5px 10px 5px 12px' }}>
@@ -145,7 +149,7 @@ export default function OpsSettingsPage() {
         </div>
       </Section>
 
-      <Section id="locations" title="📍 Locations">
+      <Section id="locations" title="📍 Locations" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:12 }}>
           {settings.locations.map(loc => (
             <div key={loc} style={{ display:'flex', alignItems:'center', gap:6, background:'var(--accent-gold-light)', border:'1px solid rgba(212,160,23,0.2)', borderRadius:99, padding:'5px 10px 5px 12px' }}>
@@ -160,7 +164,7 @@ export default function OpsSettingsPage() {
         </div>
       </Section>
 
-      <Section id="captains" title="👷 Manage Captains">
+      <Section id="captains" title="👷 Manage Captains" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         {captains.map(cap => (
           <div key={cap.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid var(--neutral-200)' }}>
             <div>
@@ -181,7 +185,7 @@ export default function OpsSettingsPage() {
         </button>
       </Section>
 
-      <Section id="export" title="📊 Data Export">
+      <Section id="export" title="📊 Data Export" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         <p style={{ margin:'0 0 12px', fontSize:13, color:'var(--neutral-500)' }}>Download complete pipeline data as CSV for reporting.</p>
         <button id="export-csv-btn" onClick={exportCSV} style={{ width:'100%', height:46, borderRadius:12, border:'1.5px solid var(--neutral-200)', background:'transparent', color:'var(--neutral-700)', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           📥 Export Pipeline as CSV

@@ -439,7 +439,17 @@ export function getNextPayoutAmount(captainId: string): number {
 
 // ─── GETTERS ──────────────────────────────────────────────────
 export function getCandidates(): Candidate[] {
-  return JSON.parse(localStorage.getItem(KEYS.candidates) || '[]');
+  const raw: any[] = JSON.parse(localStorage.getItem(KEYS.candidates) || '[]');
+  return raw.map(c => ({
+    ...c,
+    name:     c.name     || 'Unknown',
+    mobile:   c.mobile   || '',
+    timeline: Array.isArray(c.timeline) ? c.timeline : [],
+    notes:    Array.isArray(c.notes)    ? c.notes    : [],
+    payout:   c.payout   || { amount: 0, status: 'pending', paidAt: null },
+    flagged:  c.flagged  ?? false,
+    archived: c.archived ?? false,
+  }));
 }
 export function getCaptains(): Captain[] {
   return JSON.parse(localStorage.getItem(KEYS.captains) || '[]');

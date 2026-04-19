@@ -1,11 +1,59 @@
 import { useEffect, useState, useCallback } from 'react';
-
 import { Phone, MessageCircle, ChevronRight, ArrowRight } from 'lucide-react';
 import {
   getCandidates, getCaptains, moveCandidateStage, addNoteToCandidate,
   STAGE_ORDER, getNextStage, type Candidate, type Captain,
   getInitials, timeAgo,
 } from '../../lib/data';
+
+function getDaysInStage(c: Candidate): number {
+  const last = c.timeline[c.timeline.length - 1];
+  return last ? Math.floor((Date.now() - new Date(last.movedAt).getTime()) / 86400000) : 0;
+}
+
+interface CardProps { c: Candidate; compact?: boolean; captainMap: Record<string, string>; onSelect: (id: string) => void; }
+function CandidateCard({ c, compact = false, captainMap, onSelect }: CardProps) {
+  const sc = STAGE_COLORS[c.currentStage] || STAGE_COLORS.Sourced;
+  const days = getDaysInStage(c);
+  return (
+    <div
+      id={`pipeline-card-${c.id}`}
+      onClick={() => onSelect(c.id)}
+      style={{
+        background: 'var(--neutral-50)', border: `1.5px solid ${sc.border}`,
+        borderRadius: compact ? 12 : 16, padding: compact ? '10px 12px' : '14px 16px',
+        cursor: 'pointer', transition: 'transform 0.15s', marginBottom: compact ? 8 : 10,
+      }}
+      onPointerDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+      onPointerUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: compact ? 36 : 42, height: compact ? 36 : 42, borderRadius: 10,
+          background: `${sc.text}18`, color: sc.text, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: compact ? 12 : 13, fontWeight: 800,
+        }}>
+          {getInitials(c.name)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: compact ? 13 : 14, fontWeight: 700, color: 'var(--neutral-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {c.name}
+          </div>
+          {!compact && (
+            <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2 }}>
+              {c.jobType} · {c.location}
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: 'var(--neutral-500)', marginTop: 2 }}>
+            By {captainMap[c.referredBy] || '—'} · {days}d
+          </div>
+        </div>
+        <ChevronRight size={14} color="var(--neutral-500)" />
+      </div>
+    </div>
+  );
+}
 
 const STAGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   Sourced:     { bg: '#F9FAFB',                    text: '#6B7280', border: '#E5E7EB' },
@@ -74,54 +122,6 @@ export default function PipelinePage() {
     ? candidates
     : candidates.filter((c) => c.currentStage === filterStage);
 
-  const getDaysInStage = (c: Candidate) => {
-    const last = c.timeline[c.timeline.length - 1];
-    return last ? Math.floor((Date.now() - new Date(last.movedAt).getTime()) / 86400000) : 0;
-  };
-
-  const CandidateCard = ({ c, compact = false }: { c: Candidate; compact?: boolean }) => {
-    const sc = STAGE_COLORS[c.currentStage] || STAGE_COLORS.Sourced;
-    const days = getDaysInStage(c);
-    return (
-      <div
-        id={`pipeline-card-${c.id}`}
-        onClick={() => setSelectedId(c.id)}
-        style={{
-          background: 'var(--neutral-50)', border: `1.5px solid ${sc.border}`,
-          borderRadius: compact ? 12 : 16, padding: compact ? '10px 12px' : '14px 16px',
-          cursor: 'pointer', transition: 'transform 0.15s', marginBottom: compact ? 8 : 10,
-        }}
-        onPointerDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-        onPointerUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: compact ? 36 : 42, height: compact ? 36 : 42, borderRadius: 10,
-            background: `${sc.text}18`, color: sc.text, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: compact ? 12 : 13, fontWeight: 800,
-          }}>
-            {getInitials(c.name)}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: compact ? 13 : 14, fontWeight: 700, color: 'var(--neutral-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {c.name}
-            </div>
-            {!compact && (
-              <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2 }}>
-                {c.jobType} · {c.location}
-              </div>
-            )}
-            <div style={{ fontSize: 10, color: 'var(--neutral-500)', marginTop: 2 }}>
-              By {captainMap[c.referredBy] || '—'} · {days}d
-            </div>
-          </div>
-          <ChevronRight size={14} color="var(--neutral-500)" />
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div>
       {/* Header */}
@@ -183,7 +183,7 @@ export default function PipelinePage() {
       {/* List view */}
       {view === 'list' && (
         <div>
-          {filtered.map((c) => <CandidateCard key={c.id} c={c} />)}
+          {filtered.map((c) => <CandidateCard key={c.id} c={c} captainMap={captainMap} onSelect={setSelectedId} />)}
           {filtered.length === 0 && (
             <div style={{ textAlign: 'center', padding: 48, color: 'var(--neutral-500)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
@@ -222,7 +222,7 @@ export default function PipelinePage() {
                   borderRadius: '0 0 12px 12px',
                   minHeight: 120,
                 }}>
-                  {stageCandidates.map((c) => <CandidateCard key={c.id} c={c} compact />)}
+                  {stageCandidates.map((c) => <CandidateCard key={c.id} c={c} compact captainMap={captainMap} onSelect={setSelectedId} />)}
                   {stageCandidates.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '20px 10px', color: 'var(--neutral-500)', fontSize: 12 }}>
                       Empty
