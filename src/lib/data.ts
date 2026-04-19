@@ -546,7 +546,6 @@ export function moveCandidateStage(
   let guaranteeExpiresAt = candidate.guaranteeExpiresAt;
 
   if (newStage === 'Placed' && candidate.currentStage !== 'Placed') {
-    // Count existing placements by this captain (excluding this one)
     const placedBefore = candidates.filter(
       c => c.referredBy === candidate.referredBy && c.currentStage === 'Placed' && c.id !== id
     ).length;
@@ -555,6 +554,20 @@ export function moveCandidateStage(
     const gDate = new Date(now);
     gDate.setDate(gDate.getDate() + settings.guaranteeDays);
     guaranteeExpiresAt = gDate.toISOString();
+
+    // Auto-bill owner: if candidate is linked to a job that has an owner, add to pending
+    const extra = getLeadExtra(id);
+    if (extra.linkedJobId) {
+      const job = getJobs().find(j => j.id === extra.linkedJobId);
+      if (job?.ownerId) {
+        const owners = getOwners().map(o =>
+          o.id === job.ownerId
+            ? { ...o, pendingAmount: (o.pendingAmount || 0) + payoutAmount }
+            : o
+        );
+        localStorage.setItem(KEYS.owners, JSON.stringify(owners));
+      }
+    }
   }
 
   candidates[idx] = {

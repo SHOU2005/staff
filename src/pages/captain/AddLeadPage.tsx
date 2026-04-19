@@ -43,6 +43,7 @@ export default function AddLeadPage() {
   const [phone, setPhone]           = useState('');
   const [jobType, setJobType]       = useState(settings.jobTypes[0] || 'Security Guard');
   const [location, setLocation]     = useState('');
+  const [customArea, setCustomArea] = useState('');
   const [linkedJobId, setLinkedJob] = useState('');
   const [joiningDate, setJoining]   = useState('');
   const [followUpDate, setFollowUp] = useState(tomorrowStr());
@@ -53,7 +54,9 @@ export default function AddLeadPage() {
   const phoneDigits     = phone.replace(/\D/g, '');
   const phoneValid      = phoneDigits.length === 10;
   const nameValid       = name.trim().length >= 2;
-  const canSubmit       = nameValid && phoneValid && !!location;
+  const isOther         = location === 'Other';
+  const effectiveLocation = isOther ? customArea.trim() : location;
+  const canSubmit       = nameValid && phoneValid && !!location && (!isOther || customArea.trim().length >= 2);
 
   const formatPhone = (raw: string) => {
     const d = raw.replace(/\D/g, '').slice(0, 10);
@@ -77,13 +80,14 @@ export default function AddLeadPage() {
     if (!nameValid)  { toast.error('Enter at least 2 characters for name'); return; }
     if (!phoneValid) { toast.error('Enter a valid 10-digit number'); return; }
     if (!location)   { toast.error('Select a location'); return; }
+    if (isOther && customArea.trim().length < 2) { toast.error('Enter the area name'); return; }
     setLoading(true);
 
     const newCand = addCandidate({
       name: name.trim(),
       mobile: phoneDigits,
       jobType,
-      location,
+      location: effectiveLocation,
       currentStage: 'Sourced',
       referredBy: captainId,
       submittedAt: new Date().toISOString(),
@@ -249,7 +253,7 @@ export default function AddLeadPage() {
           <MapPin size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--neutral-400)', pointerEvents: 'none', zIndex: 1 }} />
           <ChevronDown size={14} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--neutral-400)', pointerEvents: 'none' }} />
           <select
-            value={location} onChange={e => setLocation(e.target.value)}
+            value={location} onChange={e => { setLocation(e.target.value); setCustomArea(''); }}
             style={{ ...inputBase, padding: '14px 40px 14px 42px', appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: location ? 'var(--neutral-900)' : 'var(--neutral-400)' } as React.CSSProperties}
             onFocus={onF} onBlur={onB}
           >
@@ -257,6 +261,25 @@ export default function AddLeadPage() {
             {settings.locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
           </select>
         </div>
+        {isOther && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ position: 'relative' }}>
+              <MapPin size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: customArea.trim().length >= 2 ? 'var(--brand-green)' : 'var(--warning)', pointerEvents: 'none' }} />
+              <input
+                autoFocus
+                type="text"
+                value={customArea}
+                onChange={e => setCustomArea(e.target.value)}
+                placeholder="Type the exact area / locality *"
+                style={{ ...inputBase, padding: '14px 14px 14px 42px', borderColor: customArea.trim().length >= 2 ? 'var(--brand-green-mid)' : 'var(--warning)' }}
+                onFocus={onF} onBlur={onB}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: customArea.trim().length >= 2 ? 'var(--brand-green)' : 'var(--warning)', fontWeight: 600, marginTop: 5, paddingLeft: 2 }}>
+              {customArea.trim().length >= 2 ? '✓ Area set' : '⚠️ Required — enter the exact area name'}
+            </div>
+          </div>
+        )}
       </Section>
 
       {/* ── Dates row ── */}
