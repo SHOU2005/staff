@@ -94,7 +94,7 @@ export default function CandidateDetailPage() {
             📞 {candidate.mobile.slice(0, 5)}-{candidate.mobile.slice(5)}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <a href={`tel:${candidate.mobile}`} style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             background: 'rgba(46,168,106,0.1)', border: '1px solid rgba(46,168,106,0.2)',
@@ -117,6 +117,43 @@ export default function CandidateDetailPage() {
             <MessageCircle size={15} /> WhatsApp
           </a>
         </div>
+
+        {/* Stage-specific confirmation messages */}
+        {candidate.currentStage === 'Interviewed' && (
+          <a
+            href={`https://wa.me/91${candidate.mobile}?text=${encodeURIComponent(
+              `🎉 Badhai ho, ${candidate.name} ji!\n\nAapka interview successfully complete ho gaya hai! 👏\n\n💼 Role: ${candidate.jobType}\n📍 Location: ${candidate.location}\n\nJaldi hi aapko joining ke baare mein call aayega. Ready rehna!\n\n— Switch Captain ⚡`
+            )}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: '#D97706', textDecoration: 'none', width: '100%' }}
+          >
+            <MessageCircle size={14} /> Send Interview Confirmation
+          </a>
+        )}
+
+        {candidate.currentStage === 'Offered' && (
+          <a
+            href={`https://wa.me/91${candidate.mobile}?text=${encodeURIComponent(
+              `🎊 Badhai ho, ${candidate.name} ji!\n\nAapko job offer mil gayi hai! 🥳\n\n💼 Role: ${candidate.jobType}\n📍 Location: ${candidate.location}\n\nOffer confirm karne ke liye reply karein. Koi sawal ho toh batayein.\n\n— Switch Captain ⚡`
+            )}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: '#7C3AED', textDecoration: 'none', width: '100%' }}
+          >
+            <MessageCircle size={14} /> Send Offer Confirmation
+          </a>
+        )}
+
+        {candidate.currentStage === 'Placed' && (
+          <a
+            href={`https://wa.me/91${candidate.mobile}?text=${encodeURIComponent(
+              `🎊 Badhai ho, ${candidate.name} ji!\n\nAapki job confirm ho gayi hai! ✅\n\n💼 Role: ${candidate.jobType}\n📍 Joining Location: ${candidate.location}\n📅 Kal se joining hai — samay par pahunchen!\n\n📌 Location link: https://maps.google.com/?q=${encodeURIComponent(candidate.location + ', Gurgaon')}\n\nKoi sawal ho toh call karein. Best of luck! 💪\n\n— Switch Captain ⚡`
+            )}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(5,150,105,0.1)', border: '1px solid rgba(5,150,105,0.25)', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: '#059669', textDecoration: 'none', width: '100%' }}
+          >
+            <MessageCircle size={14} /> Send Joining Confirmation 🎉
+          </a>
+        )}
       </div>
 
       {/* Details */}

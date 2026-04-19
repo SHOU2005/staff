@@ -110,10 +110,11 @@ export interface Job {
   description:  string;
   openings:     number;
   filled:       number;
-  shift?:       string;
+  shift?:        string;
   requirements?: string;
-  deadline?:    string;
-  contact?:     string;
+  deadline?:     string;
+  contact?:      string;
+  locationLink?: string;
 }
 
 export interface Notification {
