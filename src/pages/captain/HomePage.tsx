@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, TrendingUp, Share2, Target } from 'lucide-react';
+import { ChevronRight, TrendingUp, Share2, Target, Plus, Users, Bell, Phone, MessageCircle } from 'lucide-react';
 import {
   getCandidates, getJobs, getCaptainStats, getLeaderboard, getCaptainAchievements,
   getTierConfig, getTierLabel, getEarningRateForPlacementNumber,
+  checkFollowUpReminders, requestNotificationPermission, getFollowUpsDue,
+  setLeadExtra, getLeadExtra,
   type Candidate, type Job,
   getInitials, timeAgo,
 } from '../../lib/data';
@@ -16,11 +18,12 @@ const STAGE_COLORS: Record<string, string> = {
 export default function CaptainHomePage() {
   const { captainName, captainId } = useRole();
   const navigate = useNavigate();
-  const [stats, setStats]  = useState<ReturnType<typeof getCaptainStats> | null>(null);
-  const [recent, setRecent] = useState<Candidate[]>([]);
-  const [jobs, setJobs]     = useState<Job[]>([]);
-  const [lb, setLb]         = useState<ReturnType<typeof getLeaderboard>>([]);
-  const [achievements, setAchievements] = useState<ReturnType<typeof getCaptainAchievements>>([]);
+  const [stats, setStats]              = useState<ReturnType<typeof getCaptainStats> | null>(null);
+  const [recent, setRecent]            = useState<Candidate[]>([]);
+  const [jobs, setJobs]                = useState<Job[]>([]);
+  const [lb, setLb]                    = useState<ReturnType<typeof getLeaderboard>>([]);
+  const [achievements, setAchievements]= useState<ReturnType<typeof getCaptainAchievements>>([]);
+  const [followUpsDue, setFollowUpsDue]= useState<ReturnType<typeof getFollowUpsDue>>([]);
 
   const load = useCallback(() => {
     const s = getCaptainStats(captainId);
@@ -35,9 +38,14 @@ export default function CaptainHomePage() {
     setJobs(getJobs().filter(j => j.active));
     setLb(getLeaderboard());
     setAchievements(getCaptainAchievements(captainId));
+    setFollowUpsDue(getFollowUpsDue(captainId));
   }, [captainId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    requestNotificationPermission();
+    checkFollowUpReminders(captainId);
+  }, [load, captainId]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -121,9 +129,9 @@ export default function CaptainHomePage() {
       {/* ── Quick stats row ────────────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:16 }}>
         {[
-          { label:'Active',  value:stats?.activePipeline||0, color:'var(--brand-green-mid)', bg:'var(--brand-green-light)' },
-          { label:'Pending ₹', value:`₹${((stats?.pendingPayout||0)/1000).toFixed(1)}k`, color:'#D4A017', bg:'var(--accent-gold-light)' },
-          { label:'SLA Alert', value:stats?.slaCandidates?.length||0, color:(stats?.slaCandidates?.length||0)>0?'var(--danger)':'var(--neutral-500)', bg:(stats?.slaCandidates?.length||0)>0?'var(--danger-light)':'var(--neutral-100)' },
+          { label:'Active',    value:stats?.activePipeline||0,                                  color:'var(--brand-green-mid)', bg:'var(--brand-green-light)' },
+          { label:'Pending ₹', value:`₹${((stats?.pendingPayout||0)/1000).toFixed(1)}k`,        color:'#D4A017',                bg:'var(--accent-gold-light)' },
+          { label:'SLA Alert', value:stats?.slaCandidates?.length||0,                           color:(stats?.slaCandidates?.length||0)>0?'var(--danger)':'var(--neutral-500)', bg:(stats?.slaCandidates?.length||0)>0?'var(--danger-light)':'var(--neutral-100)' },
         ].map(({ label, value, color, bg }) => (
           <div key={label} style={{ background:bg, borderRadius:16, padding:'14px 10px', textAlign:'center', border:'1px solid rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize:20, fontWeight:900, color, fontFamily:'DM Mono, monospace', lineHeight:1 }}>{value}</div>
@@ -132,25 +140,112 @@ export default function CaptainHomePage() {
         ))}
       </div>
 
-      {/* ── Earnings rate card ────────────────────────── */}
-      <div style={{
-        background:'linear-gradient(135deg, rgba(212,160,23,0.08), rgba(212,160,23,0.04))',
-        border:'1.5px solid rgba(212,160,23,0.2)', borderRadius:18, padding:'14px 16px', marginBottom:16,
-        display:'flex', alignItems:'center', gap:14,
-      }}>
-        <div style={{ width:48, height:48, borderRadius:14, background:'rgba(212,160,23,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0 }}>💰</div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:13, color:'var(--neutral-500)', fontWeight:600, marginBottom:2 }}>Current earning rate</div>
-          <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
-            <span style={{ fontSize:26, fontWeight:900, color:'#D4A017', fontFamily:'DM Mono, monospace' }}>₹{getEarningRateForPlacementNumber(stats?.placements||0)}</span>
-            <span style={{ fontSize:12, color:'var(--neutral-500)' }}>per hire</span>
+      {/* ── Quick actions ─────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+        {/* Add Lead — primary CTA */}
+        <button
+          onClick={() => navigate('/captain/leads/new')}
+          style={{
+            gridColumn:'span 2',
+            height:52, borderRadius:14, border:'none',
+            background:'linear-gradient(135deg, #2EA86A, #1A7A4A)',
+            color:'#fff', fontSize:15, fontWeight:800, cursor:'pointer',
+            fontFamily:'inherit',
+            boxShadow:'0 4px 20px rgba(46,168,106,0.38)',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            transition:'transform 0.15s',
+          }}
+          onPointerDown={e => e.currentTarget.style.transform='scale(0.98)'}
+          onPointerUp={e => e.currentTarget.style.transform='scale(1)'}
+        >
+          <Plus size={18} strokeWidth={2.5} /> Add New Lead
+        </button>
+
+        {/* My Leads */}
+        <button
+          onClick={() => navigate('/captain/leads')}
+          style={{
+            height:48, borderRadius:14, border:'1.5px solid var(--neutral-200)',
+            background:'#fff', color:'var(--neutral-800)', fontSize:13, fontWeight:700,
+            cursor:'pointer', fontFamily:'inherit',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+            transition:'all 0.2s',
+          }}
+          onPointerDown={e => { e.currentTarget.style.borderColor='var(--brand-green-mid)'; e.currentTarget.style.color='var(--brand-green)'; }}
+          onPointerUp={e => { e.currentTarget.style.borderColor='var(--neutral-200)'; e.currentTarget.style.color='var(--neutral-800)'; }}
+        >
+          <Users size={14} /> My Leads
+        </button>
+
+        {/* Community */}
+        <button
+          onClick={() => navigate('/captain/community')}
+          style={{
+            height:48, borderRadius:14, border:'1.5px solid var(--neutral-200)',
+            background:'#fff', color:'var(--neutral-800)', fontSize:13, fontWeight:700,
+            cursor:'pointer', fontFamily:'inherit',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+            transition:'all 0.2s',
+          }}
+          onPointerDown={e => { e.currentTarget.style.borderColor='var(--brand-green-mid)'; e.currentTarget.style.color='var(--brand-green)'; }}
+          onPointerUp={e => { e.currentTarget.style.borderColor='var(--neutral-200)'; e.currentTarget.style.color='var(--neutral-800)'; }}
+        >
+          <Bell size={14} /> Community
+        </button>
+      </div>
+
+      {/* ── Follow-ups due today ──────────────────────── */}
+      {followUpsDue.length > 0 && (
+        <div style={{ marginBottom:16 }}>
+          <div style={{
+            background: followUpsDue.some(c => c.overdue)
+              ? 'linear-gradient(135deg, #FEF2F2, #FFF5F5)'
+              : 'linear-gradient(135deg, #FFFBEB, #FEFCE8)',
+            border: `1.5px solid ${followUpsDue.some(c => c.overdue) ? 'rgba(220,38,38,0.2)' : 'rgba(217,119,6,0.25)'}`,
+            borderRadius:18, overflow:'hidden',
+          }}>
+            <div style={{ padding:'12px 16px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:18 }}>{followUpsDue.some(c => c.overdue) ? '⏰' : '📞'}</span>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:800, color: followUpsDue.some(c => c.overdue) ? 'var(--danger)' : '#B45309' }}>
+                    {followUpsDue.some(c => c.overdue) ? 'Overdue follow-ups' : "Today's follow-ups"}
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--neutral-500)', marginTop:1 }}>
+                    {followUpsDue.length} candidate{followUpsDue.length > 1 ? 's' : ''} need a call
+                  </div>
+                </div>
+              </div>
+            </div>
+            {followUpsDue.map(c => (
+              <div key={c.id} style={{ padding:'10px 16px', borderTop:'1px solid rgba(0,0,0,0.06)', display:'flex', alignItems:'center', gap:10 }}>
+                <div onClick={() => navigate(`/captain/leads/${c.id}`)} style={{ flex:1, minWidth:0, cursor:'pointer' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--neutral-900)' }}>{c.name}</div>
+                  <div style={{ fontSize:11, color:'var(--neutral-500)', marginTop:1 }}>{c.currentStage} · {c.jobType} · {c.location}</div>
+                </div>
+                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                  <a href={`tel:${c.mobile}`} style={{ width:34, height:34, borderRadius:10, background:'rgba(46,168,106,0.12)', border:'1px solid rgba(46,168,106,0.2)', display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none' }}>
+                    <Phone size={14} color="var(--brand-green)" />
+                  </a>
+                  <a href={`https://wa.me/91${c.mobile}?text=${encodeURIComponent(`Hi ${c.name}! Switch Hiring Team हूँ। आपसे बात करनी थी।`)}`} target="_blank" rel="noreferrer" style={{ width:34, height:34, borderRadius:10, background:'rgba(37,211,102,0.12)', border:'1px solid rgba(37,211,102,0.2)', display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none' }}>
+                    <MessageCircle size={14} color="#25D366" />
+                  </a>
+                  <button
+                    onClick={() => {
+                      const d = new Date(); d.setDate(d.getDate() + 1);
+                      setLeadExtra(c.id, { followUpDate: d.toISOString().split('T')[0] });
+                      setFollowUpsDue(getFollowUpsDue(captainId));
+                    }}
+                    style={{ height:34, padding:'0 10px', borderRadius:10, border:'1.5px solid var(--neutral-200)', background:'#fff', cursor:'pointer', fontSize:11, fontWeight:700, color:'var(--neutral-600)', fontFamily:'inherit', whiteSpace:'nowrap' }}
+                  >
+                    +1 day
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:11, color:'var(--neutral-500)', marginBottom:2 }}>Total placed</div>
-          <div style={{ fontSize:20, fontWeight:900, color:'var(--neutral-900)', fontFamily:'DM Mono, monospace' }}>{stats?.placements||0}</div>
-        </div>
-      </div>
+      )}
 
       {/* ── Leaderboard teaser ────────────────────────── */}
       {myRank >= 0 && (

@@ -5,14 +5,15 @@ import {
 } from '../../lib/data';
 import { timeAgo } from '../../lib/data';
 
-const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
-  stage_change: { icon: '🟢', color: 'var(--success)' },
-  payout: { icon: '💰', color: '#D4A017' },
-  guarantee: { icon: '⚠️', color: 'var(--danger)' },
-  new_lead: { icon: '👷', color: 'var(--brand-green)' },
-  placement: { icon: '✅', color: 'var(--success)' },
-  achievement: { icon: '🏆', color: '#D4A017' },
-  sla_alert: { icon: '🚨', color: 'var(--danger)' },
+const TYPE_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
+  stage_change: { icon: '🟢', color: 'var(--success)',       bg: 'var(--success-light)' },
+  payout:       { icon: '💰', color: '#D4A017',              bg: 'var(--accent-gold-light)' },
+  guarantee:    { icon: '⚠️', color: 'var(--danger)',        bg: 'var(--danger-light)' },
+  new_lead:     { icon: '👷', color: 'var(--brand-green)',   bg: 'var(--brand-green-light)' },
+  placement:    { icon: '✅', color: 'var(--success)',       bg: 'var(--success-light)' },
+  achievement:  { icon: '🏆', color: '#D4A017',              bg: 'var(--accent-gold-light)' },
+  sla_alert:    { icon: '🚨', color: 'var(--danger)',        bg: 'var(--danger-light)' },
+  followup:     { icon: '📞', color: '#D97706',              bg: '#FFFBEB' },
 };
 
 export default function AlertsPage() {
@@ -87,7 +88,7 @@ export default function AlertsPage() {
               >
                 <div style={{
                   width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                  background: n.read ? 'var(--neutral-100)' : 'rgba(46,168,106,0.1)',
+                  background: n.read ? 'var(--neutral-100)' : (config.bg || 'rgba(46,168,106,0.1)'),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 20,
                 }}>

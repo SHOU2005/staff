@@ -16,7 +16,7 @@ export const KEYS = {
   jobs:            'switch_jobs',
   settings:        'switch_settings',
   onboardingDone:  'switch_onboarding_done',
-  seedDone:        'switch_seed_done',
+  leadExtras:      'switch_lead_extras',
   // Auth keys
   users:           'switch_users',
   session:         'switch_session',
@@ -114,13 +114,19 @@ export interface Job {
 
 export interface Notification {
   id:          string;
-  type:        'stage_change' | 'payout' | 'guarantee' | 'new_lead' | 'placement' | 'achievement' | 'sla_alert';
+  type:        'stage_change' | 'payout' | 'guarantee' | 'new_lead' | 'placement' | 'achievement' | 'sla_alert' | 'followup';
   title:       string;
   body:        string;
   createdAt:   string;
   read:        boolean;
   candidateId?: string;
   forRole?:    Role | 'all';
+}
+
+export interface LeadExtra {
+  linkedJobId?:  string;
+  joiningDate?:  string | null;
+  followUpDate?: string | null;
 }
 
 export interface PayoutRequest {
@@ -159,6 +165,10 @@ function startRealtimeSync() {
       await syncCaptainsFromSupabase();
       window.dispatchEvent(new Event('switch_data_update'));
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, async () => {
+      await syncJobsFromSupabase();
+      window.dispatchEvent(new Event('switch_data_update'));
+    })
     .subscribe();
 }
 
@@ -175,6 +185,19 @@ async function syncCandidatesFromSupabase() {
     timeline: r.timeline || [], notes: r.notes || [],
   }));
   saveCandidates(mapped);
+  // Merge follow-up/joining/linked-job fields back into LeadExtras
+  const extras = getLeadExtras();
+  data.forEach(r => {
+    if (r.follow_up_date || r.joining_date || r.linked_job_id) {
+      extras[r.id] = {
+        ...extras[r.id],
+        ...(r.follow_up_date  ? { followUpDate: r.follow_up_date }   : {}),
+        ...(r.joining_date    ? { joiningDate:  r.joining_date }      : {}),
+        ...(r.linked_job_id   ? { linkedJobId:  r.linked_job_id }     : {}),
+      };
+    }
+  });
+  saveLeadExtras(extras);
 }
 
 async function syncCaptainsFromSupabase() {
@@ -185,6 +208,31 @@ async function syncCaptainsFromSupabase() {
     joinedAt: r.joined_at, active: r.active,
   }));
   saveCaptains(mapped);
+}
+
+async function syncJobsFromSupabase() {
+  const { data } = await supabase.from('jobs').select('*').order('posted_at', { ascending: false });
+  if (!data) return;
+  const mapped: Job[] = data.map(r => ({
+    id: r.id, role: r.role, location: r.location, salaryRange: r.salary_range || '',
+    urgency: r.urgency as Urgency, postedAt: r.posted_at, active: r.active,
+    description: r.description || '', openings: r.openings, filled: r.filled,
+  }));
+  saveJobs(mapped);
+}
+
+export async function initFromSupabase(): Promise<void> {
+  try {
+    await Promise.all([
+      syncCandidatesFromSupabase(),
+      syncCaptainsFromSupabase(),
+      syncJobsFromSupabase(),
+    ]);
+    startRealtimeSync();
+    window.dispatchEvent(new Event('switch_data_update'));
+  } catch (err) {
+    console.warn('Supabase init failed:', err);
+  }
 }
 
 // ─── AUTH HELPERS (Using Supabase `app_users` table) ────────────
@@ -577,6 +625,12 @@ export function addJob(job: Omit<Job, 'id'>): Job {
   const jobs = getJobs();
   const newJob: Job = { ...job, id: `job_${Date.now()}` };
   saveJobs([newJob, ...jobs]);
+  supabase.from('jobs').insert({
+    id: newJob.id, role: newJob.role, location: newJob.location,
+    salary_range: newJob.salaryRange, urgency: newJob.urgency,
+    posted_at: newJob.postedAt, active: newJob.active,
+    description: newJob.description, openings: newJob.openings, filled: newJob.filled,
+  }).then();
   return newJob;
 }
 
@@ -586,7 +640,13 @@ export function updateJob(id: string, updates: Partial<Job>): Job | null {
   if (idx === -1) return null;
   jobs[idx] = { ...jobs[idx], ...updates };
   saveJobs(jobs);
-  return jobs[idx];
+  const j = jobs[idx];
+  supabase.from('jobs').update({
+    role: j.role, location: j.location, salary_range: j.salaryRange,
+    urgency: j.urgency, active: j.active, description: j.description,
+    openings: j.openings, filled: j.filled,
+  }).eq('id', id).then();
+  return j;
 }
 
 export function toggleJobActive(id: string): Job | null {
@@ -613,6 +673,78 @@ export function markAllRead() {
 }
 export function getUnreadCount(role?: Role): number {
   return getNotifications().filter(n => !n.read && (!role || !n.forRole || n.forRole === role || n.forRole === 'all')).length;
+}
+
+// ─── LEAD EXTRAS (follow-up, joining date, linked job) ────────
+export function getLeadExtras(): Record<string, LeadExtra> {
+  const raw = localStorage.getItem(KEYS.leadExtras);
+  return raw ? JSON.parse(raw) : {};
+}
+export function saveLeadExtras(extras: Record<string, LeadExtra>) {
+  localStorage.setItem(KEYS.leadExtras, JSON.stringify(extras));
+}
+export function setLeadExtra(candidateId: string, extra: Partial<LeadExtra>) {
+  const all = getLeadExtras();
+  all[candidateId] = { ...all[candidateId], ...extra };
+  saveLeadExtras(all);
+  supabase.from('pipeline_candidates').update({
+    ...(extra.followUpDate !== undefined ? { follow_up_date: extra.followUpDate || null } : {}),
+    ...(extra.joiningDate  !== undefined ? { joining_date:   extra.joiningDate  || null } : {}),
+    ...(extra.linkedJobId  !== undefined ? { linked_job_id:  extra.linkedJobId  || null } : {}),
+  }).eq('id', candidateId).then();
+}
+export function getLeadExtra(candidateId: string): LeadExtra {
+  return getLeadExtras()[candidateId] || {};
+}
+
+export function getFollowUpsDue(captainId: string): Array<Candidate & { extra: LeadExtra; overdue: boolean }> {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const extras = getLeadExtras();
+  return getCandidates()
+    .filter(c => c.referredBy === captainId && !c.archived && extras[c.id]?.followUpDate)
+    .map(c => {
+      const d = new Date(extras[c.id].followUpDate!); d.setHours(0, 0, 0, 0);
+      return { ...c, extra: extras[c.id], overdue: d < today, dueToday: d.getTime() === today.getTime(), _d: d };
+    })
+    .filter(c => (c as any)._d <= today)
+    .map(({ _d: _, dueToday: __, ...rest }) => rest) as Array<Candidate & { extra: LeadExtra; overdue: boolean }>;
+}
+
+export function checkFollowUpReminders(captainId: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = today.toDateString();
+  const due = getFollowUpsDue(captainId);
+  const existing = getNotifications();
+
+  due.forEach(c => {
+    const alreadyToday = existing.some(n =>
+      n.type === 'followup' && n.candidateId === c.id &&
+      new Date(n.createdAt).toDateString() === todayStr,
+    );
+    if (alreadyToday) return;
+    addNotification({
+      type: 'followup',
+      title: c.overdue ? `⏰ Overdue: Call ${c.name}` : `📞 Follow up today: ${c.name}`,
+      body: `${c.currentStage} stage · ${c.jobType} · ${c.location}`,
+      candidateId: c.id,
+      forRole: 'captain',
+      read: false,
+    });
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(c.overdue ? '⏰ Overdue follow-up' : '📞 Follow up today', {
+        body: `${c.name} — ${c.currentStage} · ${c.jobType}`,
+        icon: '/switch-icon.svg',
+        tag: `followup-${c.id}-${todayStr}`,
+      });
+    }
+  });
+  return due.length;
+}
+
+export function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────
@@ -791,174 +923,3 @@ export function getNextStage(stage: Stage): Stage | null {
   return idx < STAGE_ORDER.length - 1 ? STAGE_ORDER[idx + 1] : null;
 }
 
-// ─── SEED DATA ────────────────────────────────────────────────
-export function initSeedData() {
-  if (localStorage.getItem(KEYS.seedDone)) return;
-
-  const SHOURYA_ID = 'captain_shourya_001';
-  const captains: Captain[] = [
-    { id: SHOURYA_ID, name: 'Shourya Pandey', mobile: '9000000000', upiId: 'shourya@paytm', joinedAt: '2025-01-01', active: true },
-  ];
-
-
-
-  const dAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
-
-  const mkTl = (stage: Stage, days: number, capId: string): TimelineEntry[] => {
-    const stages = STAGE_ORDER.slice(0, STAGE_ORDER.indexOf(stage) + 1);
-    return stages.map((s, i) => ({ stage: s, movedAt: dAgo(days - i * 2), movedBy: i === 0 ? capId : 'ops_001', note: '' }));
-  };
-
-  // All candidates assigned to Shourya Pandey only
-  const placed: Candidate[] = [
-    { id:'cand_p001', name:'Amit Kumar',    mobile:'9701111111', jobType:'Security Guard', location:'DLF Phase 2', currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(40), placedAt:dAgo(5),  guaranteeExpiresAt:new Date(Date.now()+25*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(3)},  timeline:mkTl('Placed',40,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_p002', name:'Sunita Devi',   mobile:'9702222222', jobType:'Housekeeping',    location:'Sohna Road',  currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(42), placedAt:dAgo(8),  guaranteeExpiresAt:new Date(Date.now()+22*86400000).toISOString(), replacementNeeded:false, payout:{amount:300,status:'confirmed', paidAt:null}, timeline:mkTl('Placed',42,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_p003', name:'Ramesh Singh',  mobile:'9703333333', jobType:'Driver',           location:'Cyber City',  currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(35), placedAt:dAgo(26), guaranteeExpiresAt:new Date(Date.now()+4*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'pending',  paidAt:null}, timeline:mkTl('Placed',35,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_p004', name:'Vikram Yadav',  mobile:'9704444444', jobType:'Cook',             location:'Udyog Vihar', currentStage:'Placed', referredBy:SHOURYA_ID, submittedAt:dAgo(50), placedAt:dAgo(31), guaranteeExpiresAt:new Date(Date.now()-1*86400000).toISOString(),  replacementNeeded:false, payout:{amount:300,status:'paid',    paidAt:dAgo(10)}, timeline:mkTl('Placed',50,SHOURYA_ID), notes:[], flagged:false, archived:false },
-  ];
-
-  const offered: Candidate[] = [
-    { id:'cand_o001', name:'Deepak Mishra', mobile:'9705555551', jobType:'Security Guard', location:'Golf Course Ext', currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(20), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',20,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_o002', name:'Kavita Rao',    mobile:'9705555552', jobType:'Housekeeping',   location:'DLF Phase 3',    currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(18), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',18,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_o003', name:'Suresh Patel',  mobile:'9705555553', jobType:'Cook',           location:'MG Road',        currentStage:'Offered', referredBy:SHOURYA_ID, submittedAt:dAgo(15), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Offered',15,SHOURYA_ID), notes:[], flagged:false, archived:false },
-  ];
-
-  const interviewed: Candidate[] = [
-    { id:'cand_i001', name:'Raju Gupta',    mobile:'9706661111', jobType:'Security Guard', location:'Sector 29',     currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(14), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',14,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_i002', name:'Pooja Nair',    mobile:'9706662222', jobType:'Housekeeping',   location:'DLF Phase 4',   currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(12), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',12,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_i003', name:'Arun Tiwari',   mobile:'9706663333', jobType:'Cook',           location:'Sector 45',     currentStage:'Interviewed', referredBy:SHOURYA_ID, submittedAt:dAgo(10), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Interviewed',10,SHOURYA_ID), notes:[], flagged:false, archived:false },
-  ];
-
-  const screening: Candidate[] = [
-    { id:'cand_s001', name:'Ganesh Yadav',  mobile:'9707771111', jobType:'Security Guard', location:'DLF Phase 1',  currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(7), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',7,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_s002', name:'Neha Verma',    mobile:'9707772222', jobType:'Housekeeping',   location:'Cyber City',   currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(5), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',5,SHOURYA_ID), notes:[], flagged:false, archived:false },
-    { id:'cand_s003', name:'Manoj Singh',   mobile:'9707773333', jobType:'Cook',           location:'MG Road',      currentStage:'Screening', referredBy:SHOURYA_ID, submittedAt:dAgo(4), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:mkTl('Screening',4,SHOURYA_ID), notes:[], flagged:false, archived:false },
-  ];
-
-  const sourced: Candidate[] = [
-    { id:'cand_src001', name:'Harish Pandey', mobile:'9707777777', jobType:'Housekeeping',   location:'Manesar',    currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(1),   placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(1),   movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src002', name:'Vivek Soni',    mobile:'9708885555', jobType:'Driver',         location:'Cyber City', currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(0.3), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.3), movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src003', name:'Kiran Bala',    mobile:'9708886666', jobType:'Cook',           location:'Sector 29',  currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:dAgo(0.2), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:dAgo(0.2), movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
-    { id:'cand_src004', name:'Suman Rani',    mobile:'9708888888', jobType:'Security Guard', location:'DLF Phase 1',currentStage:'Sourced', referredBy:SHOURYA_ID, submittedAt:new Date().toISOString(), placedAt:null, guaranteeExpiresAt:null, replacementNeeded:false, payout:{amount:300,status:'pending',paidAt:null}, timeline:[{stage:'Sourced',movedAt:new Date().toISOString(),movedBy:SHOURYA_ID,note:''}], notes:[], flagged:false, archived:false },
-  ];
-
-  if (getCandidates().length === 0) {
-    saveCandidates([...placed, ...offered, ...interviewed, ...screening, ...sourced]);
-  }
-
-  const jobs: Job[] = [
-
-    { id:'job_001', role:'Security Guard', location:'DLF Phase 2',  salaryRange:'₹12,000–₹15,000/mo', urgency:'high',   postedAt:dAgo(2), active:true, description:'Need 3 guards immediately for residential complex',  openings:3, filled:0 },
-    { id:'job_002', role:'Housekeeping',   location:'Cyber City',    salaryRange:'₹10,000–₹13,000/mo', urgency:'medium', postedAt:dAgo(5), active:true, description:'Premium office housekeeping, 2 posts available',        openings:2, filled:0 },
-    { id:'job_003', role:'Driver',         location:'Udyog Vihar',   salaryRange:'₹14,000–₹18,000/mo', urgency:'high',   postedAt:dAgo(1), active:true, description:'Corporate driver needed, Mon–Sat, company vehicle',      openings:1, filled:0 },
-  ];
-
-  const notifications: Notification[] = [
-    { id:'n001', type:'stage_change', title:'Amit Kumar moved to Placed',          body:'Your candidate has been placed! ₹300 earned.', createdAt:dAgo(5),  read:false, candidateId:'cand_p001', forRole:'all' },
-    { id:'n002', type:'payout',       title:'Payout of ₹300 confirmed',            body:'Payment for Amit Kumar via paytm',              createdAt:dAgo(3),  read:false, forRole:'captain' },
-    { id:'n003', type:'guarantee',    title:'⚠️ Guarantee expiring in 4 days',     body:'Ramesh Singh — act fast!',                     createdAt:dAgo(1),  read:false, candidateId:'cand_p003', forRole:'ops' },
-    { id:'n004', type:'new_lead',     title:'New lead submitted',                  body:'Raju Gupta added by Shourya',                  createdAt:dAgo(14), read:true,  candidateId:'cand_i001', forRole:'ops' },
-    { id:'n005', type:'placement',    title:'Sunita Devi placed!',                 body:'Sohna Road · Housekeeping · ₹300',             createdAt:dAgo(8),  read:true,  candidateId:'cand_p002', forRole:'all' },
-    { id:'n006', type:'stage_change', title:'Deepak Mishra got an offer',          body:'Golf Course Ext · Security Guard',             createdAt:dAgo(2),  read:true,  candidateId:'cand_o001', forRole:'all' },
-    { id:'n007', type:'sla_alert',    title:'🔴 SLA Alert: Ganesh Yadav',          body:'7+ days in Screening — action required',       createdAt:dAgo(1),  read:false, candidateId:'cand_s001', forRole:'ops' },
-    { id:'n008', type:'achievement',  title:'🥉 Bronze Captain unlocked!',         body:'You made your first placement. Keep going!',   createdAt:dAgo(5),  read:true,  forRole:'captain' },
-  ];
-
-  saveCaptains(captains);
-  if (getJobs().length === 0) saveJobs(jobs);
-  if (getNotifications().length === 0) saveNotifications(notifications);
-  saveCandidates([...placed, ...offered, ...interviewed, ...screening, ...sourced]);
-  localStorage.setItem(KEYS.seedDone, 'true');
-}
-
-// ─── MIGRATION: SHOURYA PANDEY ─────────────────────────────────
-export function applyShouryaPandeyMigration() {
-  if (localStorage.getItem('switch_migration_shourya_3')) return;
-  
-  const toRemoveNames = ['Priya Sharma', 'Ravi Kumar', 'Anjali Singh', 'Mohit Verma', 'Sunita Yadav'];
-  let captains = getCaptains();
-  const toRemoveIds = captains.filter(c => toRemoveNames.includes(c.name)).map(c => c.id);
-  
-  const shouryaId = 'captain_shourya_001';
-  if (!captains.find(c => c.name.toLowerCase() === 'shourya pandey')) {
-    captains.push({ id: shouryaId, name: 'Shourya Pandey', mobile: '9000000000', upiId: 'shourya@paytm', joinedAt: new Date().toISOString().split('T')[0], active: true });
-  }
-  
-  captains = captains.filter(c => !toRemoveIds.includes(c.id));
-  saveCaptains(captains);
-  
-  let candidates = getCandidates();
-  // Remove candidates sourced by the deleted captains
-  candidates = candidates.filter(cand => !toRemoveIds.includes(cand.referredBy));
-  
-  // Assign remaining + ops_001-referred candidates to Shourya Pandey
-  candidates = candidates.map(cand => ({
-    ...cand,
-    referredBy: (cand.referredBy === 'ops_001' || !cand.referredBy) ? shouryaId : shouryaId,
-  }));
-  saveCandidates(candidates);
-  
-  localStorage.setItem('switch_migration_shourya_3', 'true');
-}
-
-// ─── SUPABASE PULL ─────────────────────────────────────────────
-export async function importLegacyCandidatesFromSupabase(force = false) {
-  if (!force && localStorage.getItem('switch_legacy_imported')) {
-    applyShouryaPandeyMigration();
-    startRealtimeSync();
-    return;
-  }
-  try {
-    const { data: legacyCands, error } = await supabase.from('candidates').select('*');
-    if (error || !legacyCands) return;
-    
-    // We replace the entire candidates state to ensure sync
-    const imported: Candidate[] = legacyCands.map(sb => {
-      let extra = {};
-      try { extra = JSON.parse(sb.notes || '{}'); } catch (e) {}
-
-      const stageMap: Record<string, Stage> = {
-        'Joined': 'Placed',
-        'Interview Scheduled': 'Interviewed',
-        'Offer Pending': 'Offered',
-      };
-      const stage = stageMap[sb.status] || (sb.status as Stage) || 'Sourced';
-      const isPlaced = stage === 'Placed';
-      
-      let gDate = null;
-      if (isPlaced && sb.joining_date) {
-        const d = new Date(sb.joining_date);
-        d.setDate(d.getDate() + 30);
-        gDate = d.toISOString();
-      }
-
-      return {
-        id: (extra as any).id || `cand_legacy_${sb.id}`,
-        name: sb.name || 'Unknown',
-        mobile: sb.phone || '0000000000',
-        jobType: sb.role || 'Other',
-        location: sb.location || 'Other',
-        currentStage: stage,
-        referredBy: sb.added_by || 'ops_001',
-        submittedAt: sb.created_at || new Date().toISOString(),
-        placedAt: sb.joining_date || ((extra as any).placedAt) || null,
-        guaranteeExpiresAt: (extra as any).guaranteeExpiresAt || gDate,
-        replacementNeeded: (extra as any).replacementNeeded || false,
-        replacementForId: (extra as any).replacementForId,
-        currentJob: (extra as any).currentJob,
-        payout: (extra as any).payout || { amount: 300, status: isPlaced ? 'paid' : 'pending', paidAt: isPlaced ? (sb.joining_date || sb.created_at) : null },
-        timeline: (extra as any).timeline || [{ stage: stage, movedAt: sb.created_at || new Date().toISOString(), movedBy: 'ops_001', note: 'Imported' }],
-        notes: (extra as any).notes || [],
-        flagged: (extra as any).flagged || false,
-        archived: sb.doc_received || false
-      };
-    });
-
-    saveCandidates(imported);
-    localStorage.setItem('switch_legacy_imported', 'true');
-    applyShouryaPandeyMigration();
-    if (!force) startRealtimeSync();
-  } catch (err) {
-    console.error('Import failed', err);
-  }
-}

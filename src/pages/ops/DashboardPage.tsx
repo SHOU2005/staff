@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getGuaranteeAlerts, getOpsAnalytics, importLegacyCandidatesFromSupabase
+  getGuaranteeAlerts, getOpsAnalytics,
 } from '../../lib/data';
 
 const STAGE_COLORS: Record<string, string> = {
@@ -18,8 +18,7 @@ export default function OpsDashboardPage() {
   const [alerts, setAlerts] = useState<ReturnType<typeof getGuaranteeAlerts>>([]);
 
 
-  const load = useCallback(async () => {
-    await importLegacyCandidatesFromSupabase();
+  const load = useCallback(() => {
     setAnalytics(getOpsAnalytics());
     setAlerts(getGuaranteeAlerts().slice(0, 3));
   }, []);

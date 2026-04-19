@@ -12,6 +12,7 @@ import OpsLayout     from './components/OpsLayout';
 // Captain pages
 import CaptainHomePage     from './pages/captain/HomePage';
 import MyLeadsPage         from './pages/captain/MyLeadsPage';
+import AddLeadPage         from './pages/captain/AddLeadPage';
 import CandidateDetailPage from './pages/captain/CandidateDetailPage';
 import CaptainEarningsPage from './pages/captain/EarningsPage';
 import AlertsPage          from './pages/captain/AlertsPage';
@@ -69,7 +70,8 @@ function AppRoutes() {
           <Route path="/captain" element={<Navigate to="/captain/home" replace />} />
 
           <Route path="/captain/home"      element={<CaptainLayout><CaptainHomePage /></CaptainLayout>} />
-          <Route path="/captain/leads"     element={<CaptainLayout><MyLeadsPage /></CaptainLayout>} />
+          <Route path="/captain/leads"      element={<CaptainLayout><MyLeadsPage /></CaptainLayout>} />
+          <Route path="/captain/leads/new" element={<CaptainLayout><AddLeadPage /></CaptainLayout>} />
           <Route path="/captain/leads/:id" element={<CaptainLayout><CandidateDetailPage /></CaptainLayout>} />
           <Route path="/captain/earnings"  element={<CaptainLayout><CaptainEarningsPage /></CaptainLayout>} />
           <Route path="/captain/alerts"    element={<CaptainLayout><AlertsPage /></CaptainLayout>} />

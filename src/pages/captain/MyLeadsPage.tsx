@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, MessageCircle } from 'lucide-react';
+import { Phone, MessageCircle, Plus, Search } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
   getCandidates, type Candidate,
@@ -22,6 +22,7 @@ export default function MyLeadsPage() {
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [filter, setFilter] = useState<string>('All');
+  const [search, setSearch] = useState('');
 
   const load = useCallback(() => {
     const all = getCandidates().filter((c) => c.referredBy === captainId);
@@ -48,9 +49,9 @@ export default function MyLeadsPage() {
   const alertIds = getGuaranteeAlertIds();
 
   const filtered = candidates.filter((c) => {
-    if (filter === 'All') return true;
-    if (filter === '⚠️ Alerts') return alertIds.includes(c.id);
-    return c.currentStage === filter;
+    const matchesFilter = filter === 'All' ? true : filter === '⚠️ Alerts' ? alertIds.includes(c.id) : c.currentStage === filter;
+    const matchesSearch = search === '' ? true : c.name.toLowerCase().includes(search.toLowerCase()) || c.mobile.includes(search);
+    return matchesFilter && matchesSearch;
   });
 
   const getDaysInStage = (c: Candidate) => {
@@ -61,16 +62,46 @@ export default function MyLeadsPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--brand-green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
-          My Leads
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:16 }}>
+        <div>
+          <div style={{ fontSize:10, fontWeight:800, color:'var(--brand-green-mid)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:3 }}>My Leads</div>
+          <h1 style={{ margin:0, fontSize:24, fontWeight:800, letterSpacing:'-0.03em', color:'var(--neutral-900)' }}>Candidates</h1>
+          <div style={{ fontSize:13, color:'var(--neutral-500)', marginTop:4 }}>
+            {candidates.length} total · {candidates.filter(c => c.currentStage==='Placed').length} placed
+          </div>
         </div>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--neutral-900)' }}>
-          Candidates
-        </h1>
-        <div style={{ fontSize: 13, color: 'var(--neutral-500)', marginTop: 4 }}>
-          {candidates.length} total · {candidates.filter((c) => c.currentStage === 'Placed').length} placed
-        </div>
+        <button
+          onClick={() => navigate('/captain/leads/new')}
+          style={{
+            width:44, height:44, borderRadius:13,
+            background:'linear-gradient(135deg, #2EA86A, #1A7A4A)',
+            border:'none', color:'#fff', cursor:'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:'0 4px 14px rgba(46,168,106,0.4)', flexShrink:0,
+          }}
+        >
+          <Plus size={20} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* Search bar */}
+      <div style={{ position:'relative', marginBottom:14 }}>
+        <Search size={15} style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'var(--neutral-400)', pointerEvents:'none' }} />
+        <input
+          type="text" value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name or number..."
+          style={{
+            width:'100%', height:44, padding:'0 14px 0 42px',
+            borderRadius:12, border:'1.5px solid var(--neutral-200)',
+            fontSize:14, fontFamily:'inherit', outline:'none',
+            color:'var(--neutral-900)', background:'#fff', boxSizing:'border-box',
+            transition:'border-color 0.2s',
+          }}
+          onFocus={e => e.target.style.borderColor='var(--brand-green-mid)'}
+          onBlur={e => e.target.style.borderColor='var(--neutral-200)'}
+        />
       </div>
 
       {/* Filter chips */}

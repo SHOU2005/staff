@@ -70,26 +70,42 @@ export default function AuthPage() {
 
   return (
     <div style={{
-      minHeight: '100dvh', background: 'linear-gradient(160deg, #f0fdf4 0%, #fff 55%, #fdf6e3 100%)',
+      minHeight: '100dvh',
+      background: 'linear-gradient(160deg, #e8f8ef 0%, #fff 45%, #fdf6e3 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
+      {/* Decorative blobs */}
+      <div style={{ position:'fixed', top:-80, right:-60, width:260, height:260, borderRadius:'50%', background:'rgba(46,168,106,0.08)', pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'fixed', bottom:-100, left:-80, width:320, height:320, borderRadius:'50%', background:'rgba(212,160,23,0.07)', pointerEvents:'none', zIndex:0 }} />
+
+      <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{
-            width: 72, height: 72, borderRadius: 22, margin: '0 auto 16px',
+            width: 76, height: 76, borderRadius: 24, margin: '0 auto 16px',
             background: 'linear-gradient(135deg, #2EA86A, #1A7A4A)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 34, boxShadow: '0 8px 32px rgba(46,168,106,0.3)',
+            fontSize: 36, boxShadow: '0 10px 40px rgba(46,168,106,0.35)',
             animation: 'popIn 0.5s cubic-bezier(0.16,1,0.3,1)',
           }}>⚡</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--neutral-900)', letterSpacing: '-0.03em' }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--neutral-900)', letterSpacing: '-0.04em' }}>
             Switch Captain
           </div>
-          <div style={{ fontSize: 13, color: 'var(--brand-green)', fontWeight: 600, marginTop: 4 }}>
-            कमाएं हर hire पर
+          <div style={{ fontSize: 13, color: 'var(--brand-green-mid)', fontWeight: 700, marginTop: 5 }}>
+            कमाएं हर hire पर · Earn on every placement
           </div>
+          {screen === 'choose_role' && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginTop:16 }}>
+              {[['500+', 'Active Captains'], ['₹300+', 'Per Hire'], ['30 days', 'Guarantee']].map(([v, l]) => (
+                <div key={l} style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:15, fontWeight:900, color:'var(--neutral-900)' }}>{v}</div>
+                  <div style={{ fontSize:10, color:'var(--neutral-500)', fontWeight:600 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Card */}

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
-  getSession, saveSession, initSeedData,
+  getSession, saveSession,
   type Session, type Role,
 } from '../lib/data';
 
@@ -24,7 +24,6 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [session, setSessionState] = useState<Session | null>(null);
 
   useEffect(() => {
-    initSeedData();
     setSessionState(getSession());
   }, []);
 

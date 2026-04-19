@@ -1,33 +1,34 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Users, IndianRupee, User } from 'lucide-react';
+import { Home, Briefcase, IndianRupee, User } from 'lucide-react';
 
-// 4 nav items + center FAB slot
-const NAV_LEFT  = [
-  { to: '/captain/home',      icon: Home,        label: 'होम'       },
-  { to: '/captain/community', icon: Users,        label: 'समुदाय'   },
+const NAV_LEFT = [
+  { to: '/captain/home',  icon: Home,     label: 'होम'    },
+  { to: '/captain/leads', icon: Briefcase, label: 'लीड्स' },
 ];
 const NAV_RIGHT = [
-  { to: '/captain/earnings',  icon: IndianRupee,  label: 'कमाई'     },
-  { to: '/captain/profile',   icon: User,         label: 'प्रोफाइल' },
+  { to: '/captain/earnings', icon: IndianRupee, label: 'कमाई'     },
+  { to: '/captain/profile',  icon: User,        label: 'प्रोफाइल' },
 ];
 
 export default function CaptainLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--neutral-100)' }}>
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 80px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#F5F7FA' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 90px' }}>
         {children}
       </div>
 
-      {/* Bottom nav — 5-column grid: left×2 | FAB | right×2 */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        height: 64, background: '#fff',
-        borderTop: '1px solid var(--neutral-200)',
-        display: 'grid', gridTemplateColumns: '1fr 1fr 60px 1fr 1fr',
+        height: 68,
+        background: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        borderTop: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.07)',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 68px 1fr 1fr',
         alignItems: 'center', padding: '0 4px', zIndex: 50,
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
@@ -35,55 +36,72 @@ export default function CaptainLayout({ children }: { children: ReactNode }) {
           <NavLink key={to} to={to} id={`nav-${to.split('/').pop()}`}
             style={({ isActive }) => ({
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              textDecoration: 'none', padding: '6px 4px',
-              color: isActive ? 'var(--brand-green)' : 'var(--neutral-500)',
+              textDecoration: 'none', padding: '8px 4px',
+              color: isActive ? 'var(--brand-green-mid)' : 'var(--neutral-500)',
               fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
               position: 'relative', transition: 'color 0.2s',
             })}>
             {({ isActive }) => (
               <>
-                <div style={{ position: 'relative' }}>
-                  <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                </div>
+                {isActive && (
+                  <span style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: 28, height: 3, borderRadius: '0 0 4px 4px',
+                    background: 'var(--brand-green-mid)',
+                  }} />
+                )}
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
                 <span lang="hi">{label}</span>
-                {isActive && <span style={{ position: 'absolute', bottom: -2, width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-green)' }} />}
               </>
             )}
           </NavLink>
         ))}
 
-        {/* Center FAB — opens post composer */}
+        {/* Center FAB — Add New Lead */}
         <button
-          id="fab-compose"
-          onClick={() => navigate('/captain/community/compose')}
+          id="fab-add-lead"
+          onClick={() => navigate('/captain/leads/new')}
           style={{
-            width: 50, height: 50, borderRadius: '50%', border: 'none',
-            background: 'linear-gradient(135deg, var(--brand-green-mid), var(--brand-green))',
+            width: 54, height: 54, borderRadius: '50%', border: 'none',
+            background: 'linear-gradient(135deg, #2EA86A, #1A7A4A)',
             color: '#fff', cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(46,168,106,0.45)',
+            boxShadow: '0 4px 20px rgba(46,168,106,0.5), 0 0 0 4px rgba(46,168,106,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 26, margin: '0 auto', transition: 'transform 0.15s',
+            margin: '0 auto', transition: 'transform 0.15s, box-shadow 0.15s',
+            fontSize: 26, lineHeight: 1,
           }}
-          onPointerDown={e => (e.currentTarget.style.transform = 'scale(0.9)')}
-          onPointerUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+          onPointerDown={e => {
+            e.currentTarget.style.transform = 'scale(0.88)';
+            e.currentTarget.style.boxShadow = '0 2px 10px rgba(46,168,106,0.35)';
+          }}
+          onPointerUp={e => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(46,168,106,0.5), 0 0 0 4px rgba(46,168,106,0.12)';
+          }}
         >
-          ✏️
+          +
         </button>
 
         {NAV_RIGHT.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} id={`nav-${to.split('/').pop()}`}
             style={({ isActive }) => ({
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              textDecoration: 'none', padding: '6px 4px',
-              color: isActive ? 'var(--brand-green)' : 'var(--neutral-500)',
+              textDecoration: 'none', padding: '8px 4px',
+              color: isActive ? 'var(--brand-green-mid)' : 'var(--neutral-500)',
               fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
               position: 'relative', transition: 'color 0.2s',
             })}>
             {({ isActive }) => (
               <>
-                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                {isActive && (
+                  <span style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: 28, height: 3, borderRadius: '0 0 4px 4px',
+                    background: 'var(--brand-green-mid)',
+                  }} />
+                )}
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
                 <span lang="hi">{label}</span>
-                {isActive && <span style={{ position: 'absolute', bottom: -2, width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-green)' }} />}
               </>
             )}
           </NavLink>
