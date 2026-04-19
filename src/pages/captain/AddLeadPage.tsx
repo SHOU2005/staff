@@ -23,6 +23,15 @@ const tomorrowStr = () => {
   return d.toISOString().split('T')[0];
 };
 
+function Section({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 9 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export default function AddLeadPage() {
   const { captainId, captainName } = useRole();
   const navigate = useNavigate();
@@ -121,13 +130,6 @@ export default function AddLeadPage() {
     e.target.style.boxShadow   = 'none';
   };
 
-  const Section = ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => (
-    <div style={{ marginBottom: 20 }}>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 9 }}>{label}</label>
-      {children}
-    </div>
-  );
-
   return (
     <div>
       {/* Header */}
@@ -206,7 +208,7 @@ export default function AddLeadPage() {
           <input
             id="lead-phone" type="tel"
             value={formatPhone(phone)}
-            onChange={e => setPhone(e.target.value)}
+            onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
             placeholder="98765-43210"
             style={{ ...inputBase, padding: '14px 44px 14px 52px', fontFamily: 'DM Mono, monospace', letterSpacing: '0.04em' }}
             onFocus={onF} onBlur={onB}
