@@ -591,7 +591,7 @@ export function moveCandidateStage(
     }
   }
 
-  candidates[idx] = {
+  const updated: Candidate = {
     ...candidate,
     currentStage:       newStage,
     placedAt,
@@ -599,7 +599,21 @@ export function moveCandidateStage(
     payout:             newStage === 'Placed' ? { amount: payoutAmount, status: 'pending', paidAt: null } : candidate.payout,
     timeline:           [...candidate.timeline, { stage: newStage, movedAt: now, movedBy, note }],
   };
+  candidates[idx] = updated;
   saveCandidates(candidates);
+
+  // Sync stage change to Supabase so it survives page refresh
+  supabase.from('pipeline_candidates').update({
+    current_stage:         updated.currentStage,
+    placed_at:             updated.placedAt,
+    guarantee_expires_at:  updated.guaranteeExpiresAt,
+    replacement_needed:    updated.replacementNeeded,
+    payout_amount:         updated.payout.amount,
+    payout_status:         updated.payout.status,
+    payout_paid_at:        updated.payout.paidAt,
+    timeline:              updated.timeline,
+    notes:                 updated.notes,
+  }).eq('id', id).then();
 
   addNotification({
     type: newStage === 'Placed' ? 'placement' : 'stage_change',
@@ -619,6 +633,7 @@ export function addNoteToCandidate(id: string, text: string, addedBy: string) {
   if (idx === -1) return null;
   candidates[idx].notes.push({ text, addedBy, addedAt: new Date().toISOString() });
   saveCandidates(candidates);
+  supabase.from('pipeline_candidates').update({ notes: candidates[idx].notes }).eq('id', id).then();
   return candidates[idx];
 }
 
