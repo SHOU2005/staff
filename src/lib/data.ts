@@ -331,6 +331,15 @@ export async function changePassword(phone: string, oldPwd: string, newPwd: stri
 
 export function logout() { saveSession(null); }
 
+export function clearAllLocalData() {
+  Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+  // Also clear community / social keys that live outside KEYS
+  ['switch_communities','switch_community_posts','switch_broadcasts',
+   'switch_polls','switch_worker_profiles','switch_rehire_log',
+   'switch_community_seed_v1','switch_legacy_imported','switch_migration_shourya_3',
+  ].forEach(k => localStorage.removeItem(k));
+}
+
 // ─── TIERED EARNINGS ──────────────────────────────────────────
 export function getEarningRateForPlacementNumber(n: number): number {
   const s = getSettings();
