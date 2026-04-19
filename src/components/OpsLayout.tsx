@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Building2 } from 'lucide-react';
+import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase } from 'lucide-react';
 import { getPayoutRequests, getGuaranteeAlerts } from '../lib/data';
 
 const navItems = [
