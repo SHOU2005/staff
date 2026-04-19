@@ -205,15 +205,40 @@ function startRealtimeSync() {
 async function syncCandidatesFromSupabase() {
   const { data } = await supabase.from('pipeline_candidates').select('*').order('submitted_at', { ascending: false });
   if (!data) return;
-  const mapped: Candidate[] = data.map(r => ({
-    id: r.id, name: r.name, mobile: r.mobile, jobType: r.job_type, location: r.location,
-    currentStage: r.current_stage as Stage, referredBy: r.referred_by || '',
-    submittedAt: r.submitted_at, placedAt: r.placed_at, guaranteeExpiresAt: r.guarantee_expires_at,
-    replacementNeeded: r.replacement_needed, replacementForId: r.replacement_for_id,
-    flagged: r.flagged, archived: r.archived,
-    payout: { amount: r.payout_amount, status: r.payout_status as PayoutStatus, paidAt: r.payout_paid_at },
-    timeline: r.timeline || [], notes: r.notes || [],
-  }));
+
+  // Build a map of existing local candidates so we can do a smart merge
+  const localMap: Record<string, Candidate> = {};
+  getCandidates().forEach(c => { localMap[c.id] = c; });
+
+  const mapped: Candidate[] = data.map(r => {
+    const local = localMap[r.id];
+    const remoteTimeline: TimelineEntry[] = r.timeline || [];
+    const localTimeline: TimelineEntry[]  = local?.timeline || [];
+    // If local has MORE timeline entries it means a stage move hasn't synced to Supabase yet
+    // — keep the local (more advanced) state instead of reverting
+    const localIsAhead = local && localTimeline.length > remoteTimeline.length;
+
+    return {
+      id:                 r.id,
+      name:               r.name               || local?.name     || '',
+      mobile:             r.mobile             || local?.mobile   || '',
+      jobType:            r.job_type           || local?.jobType  || '',
+      location:           r.location           || local?.location || '',
+      referredBy:         r.referred_by        || '',
+      submittedAt:        r.submitted_at,
+      replacementNeeded:  r.replacement_needed ?? false,
+      replacementForId:   r.replacement_for_id || null,
+      flagged:            r.flagged            ?? false,
+      archived:           r.archived           ?? false,
+      // Stage-related fields: prefer local if it's ahead
+      currentStage:        localIsAhead ? local!.currentStage        : r.current_stage as Stage,
+      placedAt:            localIsAhead ? local!.placedAt            : r.placed_at,
+      guaranteeExpiresAt:  localIsAhead ? local!.guaranteeExpiresAt  : r.guarantee_expires_at,
+      payout:              localIsAhead ? local!.payout              : { amount: r.payout_amount, status: r.payout_status as PayoutStatus, paidAt: r.payout_paid_at },
+      timeline:            localIsAhead ? localTimeline              : remoteTimeline,
+      notes:               localIsAhead ? local!.notes               : (r.notes || []),
+    };
+  });
   saveCandidates(mapped);
   // Merge follow-up/joining/linked-job fields back into LeadExtras
   const extras = getLeadExtras();
@@ -613,7 +638,9 @@ export function moveCandidateStage(
     payout_paid_at:        updated.payout.paidAt,
     timeline:              updated.timeline,
     notes:                 updated.notes,
-  }).eq('id', id).then();
+  }).eq('id', id).then(({ error }) => {
+    if (error) console.error('[moveCandidateStage] Supabase sync failed:', error.message, error.code);
+  });
 
   addNotification({
     type: newStage === 'Placed' ? 'placement' : 'stage_change',
