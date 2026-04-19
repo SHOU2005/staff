@@ -223,9 +223,23 @@ export default function OpsJobsPage() {
           {owners.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <Lbl text="Owner / Client" />
-              <select value={form.ownerId || ''} onChange={e => set('ownerId', e.target.value || undefined)} style={{ ...inputStyle, cursor: 'pointer' }} {...focusHandlers}>
+              <select
+                value={form.ownerId || ''}
+                onChange={e => {
+                  const id = e.target.value;
+                  const owner = owners.find(o => o.id === id);
+                  setForm(f => ({
+                    ...f,
+                    ownerId:  id || undefined,
+                    contact:  owner ? owner.phone : f.contact,
+                    location: owner?.location ? owner.location : f.location,
+                  }));
+                }}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+                {...focusHandlers}
+              >
                 <option value="">— None —</option>
-                {owners.map(o => <option key={o.id} value={o.id}>{o.companyName} ({o.ownerName})</option>)}
+                {owners.map(o => <option key={o.id} value={o.id}>{o.companyName} · {o.ownerName} {o.location ? `· ${o.location}` : ''}</option>)}
               </select>
             </div>
           )}
