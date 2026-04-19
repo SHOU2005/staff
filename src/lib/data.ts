@@ -555,17 +555,19 @@ export function moveCandidateStage(
     gDate.setDate(gDate.getDate() + settings.guaranteeDays);
     guaranteeExpiresAt = gDate.toISOString();
 
-    // Auto-bill owner: if candidate is linked to a job that has an owner, add to pending
+    // Update linked job + auto-bill owner on placement
     const extra = getLeadExtra(id);
     if (extra.linkedJobId) {
       const job = getJobs().find(j => j.id === extra.linkedJobId);
-      if (job?.ownerId) {
-        const owners = getOwners().map(o =>
-          o.id === job.ownerId
-            ? { ...o, pendingAmount: (o.pendingAmount || 0) + payoutAmount }
-            : o
-        );
-        localStorage.setItem(KEYS.owners, JSON.stringify(owners));
+      if (job) {
+        // Increment filled count on the job (syncs to Supabase via updateJob)
+        updateJob(job.id, { filled: (job.filled || 0) + 1 });
+        // Bill the owner if job has one assigned
+        if (job.ownerId) {
+          updateOwner(job.ownerId, {
+            pendingAmount: (getOwners().find(o => o.id === job.ownerId)?.pendingAmount || 0) + payoutAmount,
+          });
+        }
       }
     }
   }
