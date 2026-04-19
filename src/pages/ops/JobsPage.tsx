@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Plus, Edit2, X, Clock, User, Calendar, MapPin } from 'lucide-react';
-import { getJobs, addJob, updateJob, toggleJobActive, type Job, type Urgency } from '../../lib/data';
+import { getJobs, addJob, updateJob, toggleJobActive, getOwners, type Job, type Urgency, type Owner } from '../../lib/data';
 import toast from 'react-hot-toast';
 
 const SHIFT_OPTIONS = ['Morning (6am–2pm)', 'Evening (2pm–10pm)', 'Night (10pm–6am)', 'Full Day (9am–6pm)', 'Flexible'];
@@ -36,8 +36,8 @@ const Lbl = ({ text }: { text: string }) => (
   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{text}</label>
 );
 
-interface CardProps { job: Job; onEdit: (j: Job) => void; onToggle: (j: Job) => void; }
-function JobCard({ job, onEdit, onToggle }: CardProps) {
+interface CardProps { job: Job; onEdit: (j: Job) => void; onToggle: (j: Job) => void; ownerName?: string; }
+function JobCard({ job, onEdit, onToggle, ownerName }: CardProps) {
   const urg = URGENCY_COLORS[job.urgency];
   const pct = job.openings > 0 ? Math.round((job.filled / job.openings) * 100) : 0;
   const mapsUrl = job.locationLink || `https://maps.google.com/?q=${encodeURIComponent(job.location + ', Gurgaon')}`;
@@ -49,6 +49,7 @@ function JobCard({ job, onEdit, onToggle }: CardProps) {
           <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--brand-green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <MapPin size={11} /> {job.location}
           </a>
+          {ownerName && <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2, fontWeight: 600 }}>🏢 {ownerName}</div>}
         </div>
         <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 800, background: urg.bg, color: urg.color, flexShrink: 0, marginLeft: 8 }}>
           {job.urgency.toUpperCase()}
@@ -105,12 +106,13 @@ function JobCard({ job, onEdit, onToggle }: CardProps) {
 
 export default function OpsJobsPage() {
   const [jobs, setJobs]       = useState<Job[]>([]);
+  const [owners, setOwners]   = useState<Owner[]>([]);
   const [adding, setAdding]   = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
   const [form, setForm]       = useState<Partial<Job>>(EMPTY);
   const descTouched = useRef(false);
 
-  const load = useCallback(() => { setJobs(getJobs()); }, []);
+  const load = useCallback(() => { setJobs(getJobs()); setOwners(getOwners()); }, []);
   useEffect(() => { load(); }, [load]);
 
   // Auto-generate description from key fields unless user has manually edited it
@@ -218,6 +220,16 @@ export default function OpsJobsPage() {
             <div><Lbl text="Contact Phone" /><input type="tel" value={form.contact || ''} onChange={e => set('contact', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit number" style={{ ...inputStyle, fontFamily: 'DM Mono, monospace' }} {...focusHandlers} /></div>
           </div>
 
+          {owners.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Lbl text="Owner / Client" />
+              <select value={form.ownerId || ''} onChange={e => set('ownerId', e.target.value || undefined)} style={{ ...inputStyle, cursor: 'pointer' }} {...focusHandlers}>
+                <option value="">— None —</option>
+                {owners.map(o => <option key={o.id} value={o.id}>{o.companyName} ({o.ownerName})</option>)}
+              </select>
+            </div>
+          )}
+
           <div style={{ marginBottom: 12 }}>
             <Lbl text="Requirements / Skills" />
             <textarea value={form.requirements || ''} onChange={e => set('requirements', e.target.value)} placeholder="e.g. 1 year experience, own bike, ID proof..." style={taStyle} {...focusHandlers} />
@@ -255,14 +267,14 @@ export default function OpsJobsPage() {
       {active.length > 0 && (
         <>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Active ({active.length})</div>
-          {active.map(j => <JobCard key={j.id} job={j} onEdit={handleEdit} onToggle={handleToggle} />)}
+          {active.map(j => <JobCard key={j.id} job={j} onEdit={handleEdit} onToggle={handleToggle} ownerName={owners.find(o => o.id === j.ownerId)?.companyName} />)}
         </>
       )}
 
       {closed.length > 0 && (
         <>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, marginTop: 20 }}>Closed ({closed.length})</div>
-          {closed.map(j => <JobCard key={j.id} job={j} onEdit={handleEdit} onToggle={handleToggle} />)}
+          {closed.map(j => <JobCard key={j.id} job={j} onEdit={handleEdit} onToggle={handleToggle} ownerName={owners.find(o => o.id === j.ownerId)?.companyName} />)}
         </>
       )}
     </div>

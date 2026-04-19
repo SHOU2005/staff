@@ -21,9 +21,11 @@ export const KEYS = {
   users:           'switch_users',
   session:         'switch_session',
   payouts:         'switch_payouts',
+  owners:          'switch_owners',
 };
 
 // ─── TYPES ───────────────────────────────────────────────────
+export type OwnerType   = 'company' | 'pg';
 export type Stage       = 'Sourced' | 'Screening' | 'Interviewed' | 'Offered' | 'Placed';
 export type PayoutStatus= 'pending' | 'confirmed' | 'paid';
 export type Urgency     = 'low' | 'medium' | 'high';
@@ -115,6 +117,7 @@ export interface Job {
   deadline?:     string;
   contact?:      string;
   locationLink?: string;
+  ownerId?:      string;
 }
 
 export interface Notification {
@@ -146,6 +149,27 @@ export interface PayoutRequest {
   processedBy: string | null;
   note:        string;
   candidateIds: string[];
+}
+
+export interface OwnerPayment {
+  id:     string;
+  amount: number;
+  date:   string;
+  note:   string;
+}
+
+export interface Owner {
+  id:            string;
+  companyName:   string;
+  ownerName:     string;
+  phone:         string;
+  type:          OwnerType;
+  location?:     string;
+  notes?:        string;
+  pendingAmount: number;
+  payments:      OwnerPayment[];
+  createdAt:     string;
+  active:        boolean;
 }
 
 export interface Settings {
@@ -343,6 +367,35 @@ export function clearAllLocalData() {
    'switch_polls','switch_worker_profiles','switch_rehire_log',
    'switch_community_seed_v1','switch_legacy_imported','switch_migration_shourya_3',
   ].forEach(k => localStorage.removeItem(k));
+}
+
+// ─── OWNERS CRUD ─────────────────────────────────────────────
+export function getOwners(): Owner[] {
+  return JSON.parse(localStorage.getItem(KEYS.owners) || '[]');
+}
+function saveOwners(owners: Owner[]) {
+  localStorage.setItem(KEYS.owners, JSON.stringify(owners));
+}
+export function addOwner(o: Omit<Owner, 'id' | 'createdAt' | 'payments'>): Owner {
+  const owners = getOwners();
+  const newOwner: Owner = { ...o, payments: [], id: `owner_${Date.now()}`, createdAt: new Date().toISOString() };
+  saveOwners([newOwner, ...owners]);
+  return newOwner;
+}
+export function recordOwnerPayment(ownerId: string, amount: number, note: string) {
+  const owners = getOwners().map(o => {
+    if (o.id !== ownerId) return o;
+    const payment: OwnerPayment = { id: `pay_${Date.now()}`, amount, date: new Date().toISOString(), note };
+    return { ...o, payments: [payment, ...(o.payments || [])], pendingAmount: Math.max(0, (o.pendingAmount || 0) - amount) };
+  });
+  saveOwners(owners);
+}
+export function updateOwner(id: string, updates: Partial<Owner>) {
+  const owners = getOwners().map(o => o.id === id ? { ...o, ...updates } : o);
+  saveOwners(owners);
+}
+export function deleteOwner(id: string) {
+  saveOwners(getOwners().filter(o => o.id !== id));
 }
 
 // ─── TIERED EARNINGS ──────────────────────────────────────────

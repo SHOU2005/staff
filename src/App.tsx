@@ -40,6 +40,7 @@ import GuaranteePage       from './pages/ops/GuaranteePage';
 import OpsPayoutsPage      from './pages/ops/PayoutsPage';
 import OpsJobsPage         from './pages/ops/JobsPage';
 import OpsCommunityHubPage from './pages/ops/OpsCommunityHubPage';
+import OpsOwnersPage       from './pages/ops/OwnersPage';
 
 // Worker-facing (no auth)
 import WorkerStatusPage from './pages/WorkerStatusPage';
@@ -107,6 +108,7 @@ function AppRoutes() {
           <Route path="/ops/jobs"       element={<OpsLayout><OpsJobsPage /></OpsLayout>} />
           <Route path="/ops/settings"   element={<OpsLayout><OpsSettingsPage /></OpsLayout>} />
           <Route path="/ops/community"  element={<OpsLayout><OpsCommunityHubPage /></OpsLayout>} />
+          <Route path="/ops/owners"     element={<OpsLayout><OpsOwnersPage /></OpsLayout>} />
           <Route path="*"               element={<Navigate to="/ops/dashboard" replace />} />
         </>
       )}
