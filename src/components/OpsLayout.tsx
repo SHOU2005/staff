@@ -1,12 +1,12 @@
 import { type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Building2 } from 'lucide-react';
+import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Building2 } from 'lucide-react';
 import { getPayoutRequests, getGuaranteeAlerts } from '../lib/data';
 
 const navItems = [
   { to:'/ops/dashboard', icon: LayoutDashboard, label:'Home'      },
   { to:'/ops/pipeline',  icon: Layers,          label:'Pipeline'  },
-  { to:'/ops/community', icon: Building2,        label:'Community' },
+  { to:'/ops/jobs',      icon: Briefcase,        label:'Jobs'      },
   { to:'/ops/payouts',   icon: IndianRupee,      label:'Payouts'   },
   { to:'/ops/guarantee', icon: ShieldAlert,      label:'Risk'      },
 ];

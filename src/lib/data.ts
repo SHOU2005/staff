@@ -100,16 +100,20 @@ export interface Captain {
 }
 
 export interface Job {
-  id:          string;
-  role:        string;
-  location:    string;
-  salaryRange: string;
-  urgency:     Urgency;
-  postedAt:    string;
-  active:      boolean;
-  description: string;
-  openings:    number;
-  filled:      number;
+  id:           string;
+  role:         string;
+  location:     string;
+  salaryRange:  string;
+  urgency:      Urgency;
+  postedAt:     string;
+  active:       boolean;
+  description:  string;
+  openings:     number;
+  filled:       number;
+  shift?:       string;
+  requirements?: string;
+  deadline?:    string;
+  contact?:     string;
 }
 
 export interface Notification {
