@@ -521,6 +521,7 @@ export function updateCandidate(id: string, updates: Partial<Candidate>): Candid
   // Sync to Supabase
   const u = candidates[idx];
   supabase.from('pipeline_candidates').update({
+    name: u.name, mobile: u.mobile, job_type: u.jobType, location: u.location,
     current_stage: u.currentStage, placed_at: u.placedAt,
     guarantee_expires_at: u.guaranteeExpiresAt, replacement_needed: u.replacementNeeded,
     flagged: u.flagged, archived: u.archived,
