@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Phone, MessageCircle, Edit2, Check, X } from 'lucide-react';
 import {
   getCandidates, getCaptains, addNoteToCandidate, updateCandidate, getSettings,
+  getJobs, getLeadExtra, setLeadExtra,
   type Candidate, type Captain,
 } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
@@ -42,11 +43,12 @@ export default function CandidateDetailPage() {
 
   // Edit state
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName]       = useState('');
-  const [editPhone, setEditPhone]     = useState('');
-  const [editJobType, setEditJobType] = useState('');
-  const [editLocation, setEditLocation] = useState('');
-  const [editCustomLoc, setEditCustomLoc] = useState('');
+  const [editName, setEditName]             = useState('');
+  const [editPhone, setEditPhone]           = useState('');
+  const [editJobType, setEditJobType]       = useState('');
+  const [editLocation, setEditLocation]     = useState('');
+  const [editCustomLoc, setEditCustomLoc]   = useState('');
+  const [editLinkedJob, setEditLinkedJob]   = useState('');
 
   const load = useCallback(() => {
     const found = getCandidates().find((c) => c.id === id);
@@ -66,6 +68,7 @@ export default function CandidateDetailPage() {
     setEditLocation(knownLoc ? candidate.location : 'Other');
     setEditCustomLoc(knownLoc ? '' : candidate.location);
     setEditJobType(candidate.jobType);
+    setEditLinkedJob(getLeadExtra(candidate.id).linkedJobId || '');
     setEditing(true);
   };
 
@@ -82,6 +85,7 @@ export default function CandidateDetailPage() {
       jobType:  editJobType,
       location: isOther ? editCustomLoc.trim() : editLocation,
     });
+    setLeadExtra(candidate.id, { linkedJobId: editLinkedJob || undefined });
     toast.success('Details updated!');
     setEditing(false);
     load();
@@ -192,6 +196,47 @@ export default function CandidateDetailPage() {
               />
             </div>
           )}
+
+          {(() => {
+            const activeJobs = getJobs().filter(j => j.active);
+            if (activeJobs.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <Lbl text="Link to Job Opening" />
+                <select value={editLinkedJob} onChange={e => {
+                  const jobId = e.target.value;
+                  setEditLinkedJob(jobId);
+                  if (jobId) {
+                    const job = activeJobs.find(j => j.id === jobId);
+                    if (job) {
+                      const matchType = settings.jobTypes.find(jt => jt.toLowerCase() === job.role.toLowerCase());
+                      if (matchType) setEditJobType(matchType);
+                      const matchLoc = settings.locations.find(l => job.location.includes(l));
+                      if (matchLoc) { setEditLocation(matchLoc); setEditCustomLoc(''); }
+                    }
+                  }
+                }} style={{ ...inputStyle, cursor: 'pointer' }} {...fh}>
+                  <option value="">— Not linked —</option>
+                  {activeJobs.map(j => (
+                    <option key={j.id} value={j.id}>{j.role} · {j.location} · {j.salaryRange} [{j.openings - j.filled} open]</option>
+                  ))}
+                </select>
+                {editLinkedJob && (() => {
+                  const job = activeJobs.find(j => j.id === editLinkedJob);
+                  if (!job) return null;
+                  return (
+                    <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--brand-green-light)', border: '1px solid rgba(46,168,106,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🎯</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-green-dark)' }}>{job.role} — {job.location}</div>
+                        <div style={{ fontSize: 11, color: 'var(--brand-green)', marginTop: 1 }}>{job.salaryRange} · {job.openings - job.filled} slots open</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => setEditing(false)} style={{ flex: 1, height: 46, borderRadius: 12, border: '1.5px solid var(--neutral-200)', background: 'transparent', fontSize: 14, fontWeight: 700, color: 'var(--neutral-500)', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
