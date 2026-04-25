@@ -267,6 +267,9 @@ async function syncCaptainsFromSupabase() {
   const mapped: Captain[] = data.map(r => ({
     id: r.id, name: r.name, mobile: r.mobile, upiId: r.upi_id || '',
     joinedAt: r.joined_at, active: r.active,
+    lastLocation: r.last_lat && r.last_lng ? {
+      lat: r.last_lat, lng: r.last_lng, updatedAt: r.last_location_at || new Date().toISOString(),
+    } : undefined,
   }));
   saveCaptains(mapped);
 }
