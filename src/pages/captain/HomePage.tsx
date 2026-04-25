@@ -164,6 +164,64 @@ export default function CaptainHomePage() {
         </div>
       </div>
 
+      {/* ── ⚡ Flash Jobs (high urgency) ───────────────── */}
+      {jobs.filter(j => j.urgency === 'high').length > 0 && (() => {
+        const flashJobs = jobs.filter(j => j.urgency === 'high');
+        return (
+          <div style={{ marginBottom:16 }}>
+            {/* Header ticker */}
+            <div style={{ background:'#DC2626', borderRadius:'14px 14px 0 0', padding:'6px 14px', display:'flex', alignItems:'center', gap:8, overflow:'hidden' }}>
+              <span className="flash-badge" style={{ fontSize:14 }}>⚡</span>
+              <div style={{ overflow:'hidden', flex:1 }}>
+                <div className="flash-ticker-inner">
+                  {[...flashJobs, ...flashJobs].map((j, i) => (
+                    <span key={i} style={{ fontSize:11, fontWeight:800, color:'#fff', letterSpacing:'0.06em', textTransform:'uppercase', paddingRight:40 }}>
+                      URGENT · {j.role} · {j.location} · {j.salaryRange} &nbsp;&nbsp;&nbsp;
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <span className="flash-badge" style={{ fontSize:11, fontWeight:900, color:'#fff', background:'rgba(255,255,255,0.2)', borderRadius:99, padding:'2px 8px', flexShrink:0 }}>FLASH</span>
+            </div>
+
+            {/* Job cards */}
+            <div style={{ background:'#FFF5F5', border:'2px solid #DC2626', borderTop:'none', borderRadius:'0 0 14px 14px', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {flashJobs.map(job => (
+                <div key={job.id} style={{ background:'#fff', borderRadius:12, padding:'12px 14px', border:'1px solid rgba(220,38,38,0.15)' }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:8 }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:16, fontWeight:900, color:'var(--neutral-900)', marginBottom:2 }}>{job.role}</div>
+                      <div style={{ fontSize:12, color:'var(--neutral-500)' }}>📍 {job.location} &nbsp;·&nbsp; 🔢 {job.openings - job.filled} open</div>
+                    </div>
+                    <div style={{ textAlign:'right', flexShrink:0, marginLeft:10 }}>
+                      <div style={{ fontSize:16, fontWeight:900, color:'var(--brand-green)', fontFamily:'DM Mono, monospace' }}>{job.salaryRange}</div>
+                      <div style={{ fontSize:10, fontWeight:700, color:'#DC2626', textTransform:'uppercase', letterSpacing:'0.06em' }}>🔴 Urgent</div>
+                    </div>
+                  </div>
+                  {job.description && (
+                    <div style={{ fontSize:12, color:'var(--neutral-600)', marginBottom:10, lineHeight:1.5 }}>{job.description}</div>
+                  )}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <button
+                      onClick={() => navigate('/captain/leads/new')}
+                      style={{ height:38, borderRadius:10, border:'none', background:'linear-gradient(135deg,#DC2626,#B91C1C)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}
+                    >
+                      + Add Lead
+                    </button>
+                    <button
+                      onClick={() => shareJob(job)}
+                      style={{ height:38, borderRadius:10, border:'1.5px solid rgba(220,38,38,0.3)', background:'#fff', color:'#DC2626', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}
+                    >
+                      <Share2 size={13} /> Share
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Quick stats row ────────────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:16 }}>
         {[

@@ -646,3 +646,15 @@ body {
   50%      { transform: scale(1.15); }
 }
 .streak-flame { animation: flamePulse 1.8s ease-in-out infinite; display: inline-block; }
+
+/* Flash job animations */
+@keyframes flashBlink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+@keyframes flashSlide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.flash-badge        { animation: flashBlink 1s ease-in-out infinite; }
+.flash-ticker-inner { display: flex; animation: flashSlide 20s linear infinite; width: max-content; }
