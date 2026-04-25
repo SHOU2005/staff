@@ -1109,6 +1109,29 @@ export function getTodaysJoinings(): Array<Candidate & { extra: LeadExtra; capta
     .map(c => ({ ...c, extra: extras[c.id] || {}, captainName: captainMap[c.referredBy] || 'Unknown' }));
 }
 
+// ─── CAPTAIN STREAK ──────────────────────────────────────────
+export function getCaptainStreak(captainId: string): number {
+  const dates = new Set(
+    getCandidates()
+      .filter(c => c.referredBy === captainId)
+      .map(c => c.submittedAt.split('T')[0])
+  );
+  if (!dates.size) return 0;
+  const sorted = [...dates].sort().reverse();
+  const today     = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
+  let streak = 0;
+  let cur = new Date(sorted[0]);
+  for (const d of sorted) {
+    if (d === cur.toISOString().split('T')[0]) {
+      streak++;
+      cur = new Date(cur.getTime() - 86400000);
+    } else break;
+  }
+  return streak;
+}
+
 // ─── WHATSAPP CONFIRMATION MESSAGE ───────────────────────────
 export function buildConfirmationMessage(candidate: Candidate, extra: LeadExtra): string {
   const jobs     = getJobs();

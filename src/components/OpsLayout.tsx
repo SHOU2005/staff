@@ -28,12 +28,14 @@ export default function OpsLayout({ children }: { children: ReactNode }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden', background:'var(--neutral-100)' }}>
       {/* Top bar */}
-      <div style={{ height:56, padding:'0 16px', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fff', borderBottom:'1px solid var(--neutral-200)', flexShrink:0, zIndex:50 }}>
+      <div style={{ height:60, padding:'0 16px', display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fff', borderBottom:'1px solid var(--neutral-200)', flexShrink:0, zIndex:50 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:10, flexShrink:0, background:'linear-gradient(135deg,#D4A017,#b87d12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, boxShadow:'0 2px 10px rgba(212,160,23,0.3)' }}>📊</div>
+          <div style={{ width:36, height:36, borderRadius:11, flexShrink:0, background:'linear-gradient(135deg,#D4A017,#b87d12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, boxShadow:'0 2px 10px rgba(212,160,23,0.3)' }}>⚡</div>
           <div>
             <div style={{ fontSize:15, fontWeight:800, color:'var(--neutral-900)', letterSpacing:'-0.02em', lineHeight:1.1 }}>Switch Ops</div>
-            <div style={{ fontSize:9, color:'#D4A017', fontWeight:800, letterSpacing:'0.06em', textTransform:'uppercase' }}>Operations Team</div>
+            <div style={{ fontSize:10, color:'var(--neutral-400)', fontWeight:600 }}>
+              {new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })}
+            </div>
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>

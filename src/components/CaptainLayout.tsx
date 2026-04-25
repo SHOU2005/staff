@@ -47,9 +47,7 @@ export default function CaptainLayout({ children }: { children: ReactNode }) {
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         height: 68,
-        background: 'rgba(255,255,255,0.97)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
+        background: '#fff',
         borderTop: '1px solid rgba(0,0,0,0.06)',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.07)',
         display: 'grid', gridTemplateColumns: '1fr 1fr 68px 1fr 1fr',
@@ -61,19 +59,14 @@ export default function CaptainLayout({ children }: { children: ReactNode }) {
             style={({ isActive }) => ({
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               textDecoration: 'none', padding: '8px 4px',
-              color: isActive ? 'var(--brand-green-mid)' : 'var(--neutral-500)',
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+              color: isActive ? 'var(--brand-green-mid)' : '#9CA3AF',
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.02em', textTransform: 'uppercase',
               position: 'relative', transition: 'color 0.2s',
+              background: isActive ? 'rgba(46,168,106,0.08)' : 'transparent',
+              borderRadius: 12,
             })}>
             {({ isActive }) => (
               <>
-                {isActive && (
-                  <span style={{
-                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                    width: 28, height: 3, borderRadius: '0 0 4px 4px',
-                    background: 'var(--brand-green-mid)',
-                  }} />
-                )}
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
                 <span lang="hi">{label}</span>
               </>
@@ -111,19 +104,14 @@ export default function CaptainLayout({ children }: { children: ReactNode }) {
             style={({ isActive }) => ({
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               textDecoration: 'none', padding: '8px 4px',
-              color: isActive ? 'var(--brand-green-mid)' : 'var(--neutral-500)',
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+              color: isActive ? 'var(--brand-green-mid)' : '#9CA3AF',
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.02em', textTransform: 'uppercase',
               position: 'relative', transition: 'color 0.2s',
+              background: isActive ? 'rgba(46,168,106,0.08)' : 'transparent',
+              borderRadius: 12,
             })}>
             {({ isActive }) => (
               <>
-                {isActive && (
-                  <span style={{
-                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                    width: 28, height: 3, borderRadius: '0 0 4px 4px',
-                    background: 'var(--brand-green-mid)',
-                  }} />
-                )}
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
                 <span lang="hi">{label}</span>
               </>

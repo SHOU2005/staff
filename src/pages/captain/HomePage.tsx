@@ -6,6 +6,7 @@ import {
   getTierConfig, getTierLabel, getEarningRateForPlacementNumber,
   checkFollowUpReminders, requestNotificationPermission, getFollowUpsDue,
   setLeadExtra, getTomorrowsJoinings, buildConfirmationMessage, getCaptains,
+  getCaptainStreak,
   type Candidate, type Job, type LeadExtra,
   getInitials, timeAgo,
 } from '../../lib/data';
@@ -18,6 +19,7 @@ const STAGE_COLORS: Record<string, string> = {
 export default function CaptainHomePage() {
   const { captainName, captainId } = useRole();
   const navigate = useNavigate();
+  const [streak, setStreak]            = useState(0);
   const [stats, setStats]              = useState<ReturnType<typeof getCaptainStats> | null>(null);
   const [recent, setRecent]            = useState<Candidate[]>([]);
   const [jobs, setJobs]                = useState<Job[]>([]);
@@ -30,6 +32,7 @@ export default function CaptainHomePage() {
   const load = useCallback(() => {
     const s = getCaptainStats(captainId);
     setStats(s);
+    setStreak(getCaptainStreak(captainId));
     const all = getCandidates().filter(c => c.referredBy === captainId && !c.archived);
     all.sort((a, b) => {
       const la = a.timeline[a.timeline.length-1]?.movedAt || a.submittedAt;
@@ -138,6 +141,27 @@ export default function CaptainHomePage() {
             {toNextTier} more hire{toNextTier>1?'s':''} → unlock <b>₹{nextRate > 300 ? nextRate : (tier==='Bronze'?400:500)}/hire</b> 🚀
           </div>
         )}
+      </div>
+
+      {/* ── Streak + goal row ─── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+        {/* Streak */}
+        <div style={{ background:'linear-gradient(135deg,#FFF7ED,#FEF3C7)', border:'1.5px solid rgba(245,158,11,0.25)', borderRadius:18, padding:'14px 14px' }}>
+          <div style={{ fontSize:11, fontWeight:800, color:'#B45309', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>Streak</div>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span className="streak-flame" style={{ fontSize:28 }}>🔥</span>
+            <span style={{ fontSize:32, fontWeight:900, color:'#D97706', fontFamily:'DM Mono, monospace', lineHeight:1 }}>{streak}</span>
+          </div>
+          <div style={{ fontSize:11, color:'#92400E', marginTop:4, fontWeight:600 }}>day{streak!==1?'s':''} active</div>
+        </div>
+        {/* Today's leads */}
+        <div style={{ background:'linear-gradient(135deg,var(--brand-green-light),rgba(46,168,106,0.05))', border:'1.5px solid rgba(46,168,106,0.2)', borderRadius:18, padding:'14px 14px' }}>
+          <div style={{ fontSize:11, fontWeight:800, color:'var(--brand-green)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>Today</div>
+          <div style={{ fontSize:32, fontWeight:900, color:'var(--brand-green-dark)', fontFamily:'DM Mono, monospace', lineHeight:1 }}>
+            {getCandidates().filter(c => c.referredBy===captainId && c.submittedAt.startsWith(new Date().toISOString().split('T')[0])).length}
+          </div>
+          <div style={{ fontSize:11, color:'var(--brand-green)', marginTop:4, fontWeight:600 }}>leads added</div>
+        </div>
       </div>
 
       {/* ── Quick stats row ────────────────────────────── */}

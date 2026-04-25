@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, MessageCircle } from 'lucide-react';
 import {
   getGuaranteeAlerts, getOpsAnalytics, getTodaysJoinings, getCaptains,
-  buildConfirmationMessage,
+  buildConfirmationMessage, getLeaderboard,
   type Candidate, type LeadExtra, type Captain,
 } from '../../lib/data';
 import CaptainMap from '../../components/CaptainMap';
@@ -23,10 +23,12 @@ export default function OpsDashboardPage() {
   const [todayJoinings, setTodayJoinings] = useState<Array<Candidate & { extra: LeadExtra; captainName: string }>>([]);
   const [liveCount, setLiveCount]       = useState(0);
   const [captains, setCaptains]         = useState<Captain[]>([]);
+  const [leaderboard, setLeaderboard]   = useState<ReturnType<typeof getLeaderboard>>([]);
 
   const load = useCallback(() => {
     setAnalytics(getOpsAnalytics());
     setAlerts(getGuaranteeAlerts().slice(0, 3));
+    setLeaderboard(getLeaderboard().slice(0, 5));
     setTodayJoinings(getTodaysJoinings());
     const caps = getCaptains();
     setCaptains(caps);
@@ -181,6 +183,34 @@ export default function OpsDashboardPage() {
           );
         })}
       </div>
+
+      {/* Captain Leaderboard */}
+      {leaderboard.length > 0 && (
+        <div style={{ background:'#fff', border:'1px solid var(--neutral-200)', borderRadius:18, padding:16, marginBottom:18 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:'var(--neutral-900)' }}>🏆 Captain Leaderboard</div>
+            <span style={{ fontSize:11, color:'var(--neutral-400)', fontWeight:600 }}>This month</span>
+          </div>
+          {leaderboard.map((entry, i) => {
+            const medals = ['🥇','🥈','🥉'];
+            const barW = Math.max((entry.thisMonth / Math.max(leaderboard[0].thisMonth, 1)) * 100, 6);
+            return (
+              <div key={entry.captain.id} style={{ display:'flex', alignItems:'center', gap:10, paddingBottom: i < leaderboard.length-1 ? 10 : 0, marginBottom: i < leaderboard.length-1 ? 10 : 0, borderBottom: i < leaderboard.length-1 ? '1px solid var(--neutral-100)' : 'none' }}>
+                <span style={{ fontSize:18, width:24, textAlign:'center', flexShrink:0 }}>{medals[i] || `#${i+1}`}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:'var(--neutral-900)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{entry.captain.name}</span>
+                    <span style={{ fontSize:13, fontWeight:900, color:'var(--brand-green)', fontFamily:'DM Mono, monospace', flexShrink:0, marginLeft:8 }}>{entry.thisMonth} placed</span>
+                  </div>
+                  <div style={{ height:5, background:'var(--neutral-100)', borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${barW}%`, background: i===0?'#D4A017': i===1?'#9CA3AF':'#CD7F32', borderRadius:3 }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Guarantee alerts */}
       {alerts.some((a) => a.daysLeft < 7) && (
