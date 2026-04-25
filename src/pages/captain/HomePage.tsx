@@ -5,8 +5,8 @@ import {
   getCandidates, getJobs, getCaptainStats, getLeaderboard, getCaptainAchievements,
   getTierConfig, getTierLabel, getEarningRateForPlacementNumber,
   checkFollowUpReminders, requestNotificationPermission, getFollowUpsDue,
-  setLeadExtra,
-  type Candidate, type Job,
+  setLeadExtra, getTomorrowsJoinings, buildConfirmationMessage, getCaptains,
+  type Candidate, type Job, type LeadExtra,
   getInitials, timeAgo,
 } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
@@ -24,6 +24,8 @@ export default function CaptainHomePage() {
   const [lb, setLb]                    = useState<ReturnType<typeof getLeaderboard>>([]);
   const [achievements, setAchievements]= useState<ReturnType<typeof getCaptainAchievements>>([]);
   const [followUpsDue, setFollowUpsDue]= useState<ReturnType<typeof getFollowUpsDue>>([]);
+  const [tomorrowJoinings, setTomorrowJoinings] = useState<Array<Candidate & { extra: LeadExtra }>>([]);
+  const [locationLive, setLocationLive]= useState(false);
 
   const load = useCallback(() => {
     const s = getCaptainStats(captainId);
@@ -39,6 +41,10 @@ export default function CaptainHomePage() {
     setLb(getLeaderboard());
     setAchievements(getCaptainAchievements(captainId));
     setFollowUpsDue(getFollowUpsDue(captainId));
+    setTomorrowJoinings(getTomorrowsJoinings(captainId));
+    const cap = getCaptains().find(c => c.id === captainId);
+    const live = cap?.lastLocation ? (Date.now() - new Date(cap.lastLocation.updatedAt).getTime()) < 2 * 60 * 60 * 1000 : false;
+    setLocationLive(live);
   }, [captainId]);
 
   useEffect(() => {
@@ -84,10 +90,18 @@ export default function CaptainHomePage() {
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.65)', fontWeight:600, marginBottom:2 }}>{greeting()}</div>
             <div style={{ fontSize:22, fontWeight:900, color:'#fff', letterSpacing:'-0.03em' }}>{captainName || 'Captain'}</div>
           </div>
-          {/* Tier badge */}
-          <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:12, padding:'8px 12px', textAlign:'center', backdropFilter:'blur(4px)' }}>
-            <div style={{ fontSize:22 }}>{tierCfg.icon}</div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.9)', fontWeight:800, marginTop:2, textTransform:'uppercase' }}>{tier}</div>
+          {/* Tier + location badges */}
+          <div style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end' }}>
+            <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:12, padding:'8px 12px', textAlign:'center', backdropFilter:'blur(4px)' }}>
+              <div style={{ fontSize:22 }}>{tierCfg.icon}</div>
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.9)', fontWeight:800, marginTop:2, textTransform:'uppercase' }}>{tier}</div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:4, background: locationLive ? 'rgba(5,150,105,0.3)' : 'rgba(255,255,255,0.1)', borderRadius:99, padding:'4px 8px' }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background: locationLive ? '#4ADE80' : 'rgba(255,255,255,0.4)', flexShrink:0 }} />
+              <span style={{ fontSize:9, fontWeight:800, color: locationLive ? '#4ADE80' : 'rgba(255,255,255,0.5)', letterSpacing:'0.06em' }}>
+                {locationLive ? 'LIVE' : 'OFFLINE'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -139,6 +153,49 @@ export default function CaptainHomePage() {
           </div>
         ))}
       </div>
+
+      {/* ── Tomorrow's Joinings banner ─────────────────── */}
+      {tomorrowJoinings.length > 0 && (
+        <div style={{ background:'linear-gradient(135deg,rgba(37,211,102,0.1),rgba(37,211,102,0.04))', border:'1.5px solid rgba(37,211,102,0.3)', borderRadius:18, padding:'14px 16px', marginBottom:16 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:800, color:'#059669', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:2 }}>Action Needed</div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--neutral-900)' }}>
+                {tomorrowJoinings.length} joining tomorrow 🎉
+              </div>
+            </div>
+            {tomorrowJoinings.length > 1 && (
+              <button
+                onClick={() => tomorrowJoinings.forEach((c, i) => setTimeout(() => {
+                  const msg = buildConfirmationMessage(c, c.extra);
+                  window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+                }, i * 600))}
+                style={{ background:'linear-gradient(135deg,#25D366,#128C7E)', borderRadius:10, padding:'8px 13px', border:'none', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}
+              >
+                Send All
+              </button>
+            )}
+          </div>
+          {tomorrowJoinings.map(c => {
+            const msg = buildConfirmationMessage(c, c.extra);
+            return (
+              <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.7)', borderRadius:12, padding:'10px 12px', marginBottom:6 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--neutral-900)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</div>
+                  <div style={{ fontSize:11, color:'var(--neutral-500)', marginTop:1 }}>{c.jobType} · {c.extra.reportingTime ? '⏰ ' + c.extra.reportingTime : c.location}</div>
+                </div>
+                <a
+                  href={`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:'flex', alignItems:'center', gap:5, background:'linear-gradient(135deg,#25D366,#128C7E)', borderRadius:9, padding:'8px 12px', fontSize:12, fontWeight:700, color:'#fff', textDecoration:'none', flexShrink:0 }}
+                >
+                  📱 Confirm
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Quick actions ─────────────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>

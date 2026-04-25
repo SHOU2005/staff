@@ -81,6 +81,7 @@ export interface Candidate {
   replacementNeeded:   boolean;
   replacementForId?:   string;
   currentJob?:         string;
+  geo?:                { lat: number; lng: number; accuracy?: number };
   payout: {
     amount:   number;
     status:   PayoutStatus;
@@ -93,12 +94,13 @@ export interface Candidate {
 }
 
 export interface Captain {
-  id:       string;
-  name:     string;
-  mobile:   string;
-  upiId:    string;
-  joinedAt: string;
-  active:   boolean;
+  id:           string;
+  name:         string;
+  mobile:       string;
+  upiId:        string;
+  joinedAt:     string;
+  active:       boolean;
+  lastLocation?: { lat: number; lng: number; updatedAt: string };
 }
 
 export interface Job {
@@ -133,9 +135,11 @@ export interface Notification {
 }
 
 export interface LeadExtra {
-  linkedJobId?:  string;
-  joiningDate?:  string | null;
-  followUpDate?: string | null;
+  linkedJobId?:   string;
+  joiningDate?:   string | null;
+  followUpDate?:  string | null;
+  reportingTime?: string;
+  contactPerson?: string;
 }
 
 export interface PayoutRequest {
@@ -174,13 +178,14 @@ export interface Owner {
 }
 
 export interface Settings {
-  perHireFee:   number;
-  guaranteeDays: number;
-  jobTypes:     string[];
-  locations:    string[];
-  slaAlertDays: number;
-  opsCode:      string;   // code ops team enters to register as ops
-  earningTiers: { upTo: number; amount: number }[];
+  perHireFee:     number;
+  guaranteeDays:  number;
+  jobTypes:       string[];
+  locations:      string[];
+  slaAlertDays:   number;
+  opsCode:        string;
+  earningTiers:   { upTo: number; amount: number }[];
+  contactNumbers: string[];
 }
 
 // ─── AUTH HELPERS ─────────────────────────────────────────────
@@ -230,6 +235,7 @@ async function syncCandidatesFromSupabase() {
       replacementForId:   r.replacement_for_id || null,
       flagged:            r.flagged            ?? false,
       archived:           r.archived           ?? false,
+      geo:                local?.geo,
       // Stage-related fields: prefer local if it's ahead
       currentStage:        localIsAhead ? local!.currentStage        : r.current_stage as Stage,
       placedAt:            localIsAhead ? local!.placedAt            : r.placed_at,
@@ -491,10 +497,11 @@ export function getPayoutRequests(): PayoutRequest[] {
 
 export function getSettings(): Settings {
   const defaults: Settings = {
-    perHireFee:   300,
-    guaranteeDays: 30,
-    slaAlertDays:  7,
-    opsCode:       'SWITCH2025',
+    perHireFee:     300,
+    guaranteeDays:  30,
+    slaAlertDays:   7,
+    opsCode:        'SWITCH2025',
+    contactNumbers: ['', ''],
     jobTypes:     ['Security Guard', 'Housekeeping', 'Driver', 'Cook', 'Helper', 'Other'],
     locations:    [
       'DLF Phase 1','DLF Phase 2','DLF Phase 3','DLF Phase 4','DLF Phase 5',
@@ -1064,5 +1071,61 @@ export const STAGE_ORDER: Stage[] = ['Sourced', 'Screening', 'Interviewed', 'Off
 export function getNextStage(stage: Stage): Stage | null {
   const idx = STAGE_ORDER.indexOf(stage);
   return idx < STAGE_ORDER.length - 1 ? STAGE_ORDER[idx + 1] : null;
+}
+
+// ─── CAPTAIN LOCATION ────────────────────────────────────────
+export function saveCaptainLocation(captainId: string, lat: number, lng: number) {
+  const captains = getCaptains();
+  const idx = captains.findIndex(c => c.id === captainId);
+  if (idx === -1) return;
+  captains[idx] = { ...captains[idx], lastLocation: { lat, lng, updatedAt: new Date().toISOString() } };
+  saveCaptains(captains);
+  supabase.from('captains').update({
+    last_lat: lat, last_lng: lng, last_location_at: new Date().toISOString(),
+  }).eq('id', captainId).then();
+}
+
+// ─── TOMORROW JOININGS ───────────────────────────────────────
+export function getTomorrowsJoinings(captainId: string): Array<Candidate & { extra: LeadExtra }> {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const extras = getLeadExtras();
+  return getCandidates()
+    .filter(c => c.referredBy === captainId && !c.archived && extras[c.id]?.joiningDate === tomorrowStr)
+    .map(c => ({ ...c, extra: extras[c.id] || {} }));
+}
+
+export function getTodaysJoinings(): Array<Candidate & { extra: LeadExtra; captainName: string }> {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const extras = getLeadExtras();
+  const captainMap: Record<string, string> = {};
+  getCaptains().forEach(c => { captainMap[c.id] = c.name; });
+  return getCandidates()
+    .filter(c => !c.archived && extras[c.id]?.joiningDate === todayStr)
+    .map(c => ({ ...c, extra: extras[c.id] || {}, captainName: captainMap[c.referredBy] || 'Unknown' }));
+}
+
+// ─── WHATSAPP CONFIRMATION MESSAGE ───────────────────────────
+export function buildConfirmationMessage(candidate: Candidate, extra: LeadExtra): string {
+  const jobs     = getJobs();
+  const owners   = getOwners();
+  const settings = getSettings();
+  const job      = extra.linkedJobId ? jobs.find(j => j.id === extra.linkedJobId) : null;
+  const owner    = job?.ownerId ? owners.find(o => o.id === job.ownerId) : null;
+
+  const role          = job?.role || candidate.jobType;
+  const company       = owner?.companyName || job?.location || candidate.location;
+  const addressLine   = job ? job.location + (job.locationLink ? '\n' + job.locationLink : '') : candidate.location;
+  const joiningDate   = extra.joiningDate
+    ? new Date(extra.joiningDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Kal';
+  const reportingTime = extra.reportingTime || '9:00 AM';
+  const salary        = job?.salaryRange || 'As discussed';
+  const contactPerson = extra.contactPerson || job?.contact || 'Site Manager';
+  const nums          = (settings.contactNumbers || []).filter(Boolean);
+  const contactStr    = nums.length > 0 ? nums.join(', ') : 'Switch Team';
+
+  return `Namaste bhai 🙏\n\nAapki job confirm ho gayi — Switch ki taraf se badhai! 🎉\n\nRole: ${role}\nCompany/PG: ${company}\nAddress: ${addressLine}\n\nDate: ${joiningDate} | Time: ${reportingTime}\nSalary: ${salary}\n\nKisse milna hai:\n${contactPerson}\nBolna: "Main Switch se aaya hoon"\n\nSaath laana hai:\n✅ Aadhar Card (original + copy)\n✅ 2 passport photos\n\nKoi sawaal ho toh reply karo. All the best! 💪\n\n— Switch | ${contactStr}`;
 }
 

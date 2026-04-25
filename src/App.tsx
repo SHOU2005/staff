@@ -41,6 +41,7 @@ import OpsPayoutsPage      from './pages/ops/PayoutsPage';
 import OpsJobsPage         from './pages/ops/JobsPage';
 import OpsCommunityHubPage from './pages/ops/OpsCommunityHubPage';
 import OpsOwnersPage       from './pages/ops/OwnersPage';
+import OpsLocationsPage    from './pages/ops/LocationsPage';
 
 // Worker-facing (no auth)
 import WorkerStatusPage from './pages/WorkerStatusPage';
@@ -57,6 +58,10 @@ const toastStyle = {
   boxShadow:    '0 4px 20px rgba(0,0,0,0.1)',
 };
 
+const APP = import.meta.env.VITE_APP as 'captain' | 'ops' | undefined;
+const showCaptain = !APP || APP === 'captain';
+const showOps     = !APP || APP === 'ops';
+
 function AppRoutes() {
   const { isLoggedIn, role } = useRole();
 
@@ -65,7 +70,7 @@ function AppRoutes() {
       <Route path="/status/:mobile" element={<WorkerStatusPage />} />
       {!isLoggedIn && <Route path="*" element={<AuthPage />} />}
 
-      {isLoggedIn && role === 'captain' && (
+      {isLoggedIn && showCaptain && role === 'captain' && (
         <>
           <Route path="/"        element={<Navigate to="/captain/home" replace />} />
           <Route path="/captain" element={<Navigate to="/captain/home" replace />} />
@@ -95,7 +100,7 @@ function AppRoutes() {
         </>
       )}
 
-      {isLoggedIn && role === 'ops' && (
+      {isLoggedIn && showOps && role === 'ops' && (
         <>
           <Route path="/"    element={<Navigate to="/ops/dashboard" replace />} />
           <Route path="/ops" element={<Navigate to="/ops/dashboard" replace />} />
@@ -109,6 +114,7 @@ function AppRoutes() {
           <Route path="/ops/settings"   element={<OpsLayout><OpsSettingsPage /></OpsLayout>} />
           <Route path="/ops/community"  element={<OpsLayout><OpsCommunityHubPage /></OpsLayout>} />
           <Route path="/ops/owners"     element={<OpsLayout><OpsOwnersPage /></OpsLayout>} />
+          <Route path="/ops/locations"  element={<OpsLayout><OpsLocationsPage /></OpsLayout>} />
           <Route path="*"               element={<Navigate to="/ops/dashboard" replace />} />
         </>
       )}

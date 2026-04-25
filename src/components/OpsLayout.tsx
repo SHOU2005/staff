@@ -1,13 +1,13 @@
 import { type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Building2, Settings } from 'lucide-react';
-import { getPayoutRequests, getGuaranteeAlerts } from '../lib/data';
+import { LayoutDashboard, Layers, ShieldAlert, IndianRupee, Briefcase, Settings, MapPin } from 'lucide-react';
+import { getPayoutRequests, getGuaranteeAlerts, getCaptains } from '../lib/data';
 
 const navItems = [
   { to:'/ops/dashboard', icon: LayoutDashboard, label:'Home'     },
   { to:'/ops/pipeline',  icon: Layers,          label:'Pipeline' },
+  { to:'/ops/locations', icon: MapPin,           label:'Locations'},
   { to:'/ops/jobs',      icon: Briefcase,       label:'Jobs'     },
-  { to:'/ops/owners',    icon: Building2,       label:'Owners'   },
   { to:'/ops/payouts',   icon: IndianRupee,     label:'Payouts'  },
   { to:'/ops/guarantee', icon: ShieldAlert,     label:'Risk'     },
 ];
@@ -15,12 +15,14 @@ const navItems = [
 
 export default function OpsLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const pendingPayouts = getPayoutRequests().filter(r => r.status === 'pending').length;
+  const pendingPayouts     = getPayoutRequests().filter(r => r.status === 'pending').length;
   const criticalGuarantees = getGuaranteeAlerts().filter(g => g.daysLeft >= 0 && g.daysLeft <= 3).length;
+  const liveCaptains       = getCaptains().filter(c => c.lastLocation && (Date.now() - new Date(c.lastLocation.updatedAt).getTime()) < 2 * 60 * 60 * 1000).length;
 
   const badges: Record<string, number> = {
     '/ops/payouts':   pendingPayouts,
     '/ops/guarantee': criticalGuarantees,
+    '/ops/locations': liveCaptains,
   };
 
   return (

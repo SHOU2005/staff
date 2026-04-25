@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  getCaptains, getCandidates, type Captain,
+  getCaptains, getCandidates, timeAgo, type Captain,
 } from '../../lib/data';
 
 export default function CaptainsPage() {
@@ -29,7 +29,7 @@ export default function CaptainsPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--brand-green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
           Field Agents
         </div>
@@ -37,6 +37,21 @@ export default function CaptainsPage() {
           Captains ({captains.length})
         </h1>
       </div>
+
+      {captains.some(c => c.lastLocation) && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+          {captains.filter(c => c.lastLocation).map(c => (
+            <a
+              key={c.id}
+              href={`https://maps.google.com/maps?q=${c.lastLocation!.lat},${c.lastLocation!.lng}&z=15`}
+              target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 99, padding: '6px 12px', fontSize: 11, fontWeight: 700, color: '#2563EB', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              📍 {c.name}
+            </a>
+          ))}
+        </div>
+      )}
 
       {captains.map((cap, i) => {
         const stats = candidateMap[cap.id] || { total: 0, placed: 0, earnings: 0 };
@@ -99,6 +114,25 @@ export default function CaptainsPage() {
                 ₹{stats.earnings.toLocaleString('en-IN')}
               </span>
             </div>
+
+            {cap.lastLocation ? (
+              <div style={{ marginTop: 8, padding: '10px 12px', background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.15)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--neutral-500)' }}>
+                  📍 Last seen {timeAgo(cap.lastLocation.updatedAt)}
+                </span>
+                <a
+                  href={`https://maps.google.com/maps?q=${cap.lastLocation.lat},${cap.lastLocation.lng}&z=15`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 12, fontWeight: 700, color: '#2563EB', textDecoration: 'none' }}
+                >
+                  View on Map →
+                </a>
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--neutral-100)', borderRadius: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--neutral-400)' }}>📍 Location not shared yet</span>
+              </div>
+            )}
           </div>
         );
       })}

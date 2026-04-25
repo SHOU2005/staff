@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Phone, MessageCircle, Edit2, Check, X } from 'lucide-react';
 import {
   getCandidates, getCaptains, addNoteToCandidate, updateCandidate, getSettings,
-  getJobs, getLeadExtra, setLeadExtra,
+  getJobs, getLeadExtra, setLeadExtra, buildConfirmationMessage,
   type Candidate, type Captain,
 } from '../../lib/data';
 import { useRole } from '../../contexts/RoleContext';
@@ -275,7 +275,11 @@ export default function CandidateDetailPage() {
           </a>
         )}
         {candidate.currentStage === 'Placed' && (
-          <a href={`https://wa.me/91${candidate.mobile}?text=${encodeURIComponent(`🎊 Badhai ho, ${candidate.name} ji!\n\nAapki job confirm ho gayi hai! ✅\n\n💼 Role: ${candidate.jobType}\n📍 Joining Location: ${candidate.location}\n📅 Kal se joining hai — samay par pahunchen!\n\n📌 Location link: https://maps.google.com/?q=${encodeURIComponent(candidate.location + ', Gurgaon')}\n\nKoi sawal ho toh call karein. Best of luck! 💪\n\n— Switch Captain ⚡`)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'rgba(5,150,105,0.1)', border: '1px solid rgba(5,150,105,0.25)', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: '#059669', textDecoration: 'none', width: '100%' }}>
+          <a
+            href={`https://wa.me/91${candidate.mobile}?text=${encodeURIComponent(buildConfirmationMessage(candidate, getLeadExtra(candidate.id)))}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg,#25D366,#128C7E)', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, color: '#fff', textDecoration: 'none', width: '100%' }}
+          >
             <MessageCircle size={14} /> Send Joining Confirmation 🎉
           </a>
         )}
@@ -284,26 +288,49 @@ export default function CandidateDetailPage() {
       {/* Details */}
       <div style={{ background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Details</div>
-        {[
-          { label: 'Job Type',    value: '🔧 ' + candidate.jobType },
-          { label: 'Location',   value: '📍 ' + candidate.location },
-          { label: 'Referred by',value: '👤 ' + (captainMap[candidate.referredBy] || 'You') },
-          { label: 'Submitted',  value: new Date(candidate.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
-          ...(candidate.currentJob ? [{ label: 'Current Job', value: candidate.currentJob }] : []),
-        ].map(({ label, value }) => (
-          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--neutral-200)' }}>
-            <span style={{ fontSize: 13, color: 'var(--neutral-500)' }}>{label}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--neutral-900)', textAlign: 'right', maxWidth: '55%' }}>{value}</span>
-          </div>
-        ))}
-        {candidate.currentStage === 'Placed' && guaranteeDaysLeft !== null && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-            <span style={{ fontSize: 13, color: 'var(--neutral-500)' }}>Guarantee</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: guaranteeDaysLeft < 7 ? 'var(--danger)' : guaranteeDaysLeft < 0 ? 'var(--neutral-500)' : 'var(--success)' }}>
-              {guaranteeDaysLeft < 0 ? '✓ Expired' : guaranteeDaysLeft === 0 ? '⚠️ Expires today!' : `${guaranteeDaysLeft}d left`}
-            </span>
-          </div>
-        )}
+        {(() => {
+          const extra = getLeadExtra(candidate.id);
+          const rows: { label: string; value: React.ReactNode }[] = [
+            { label: 'Job Type',    value: '🔧 ' + candidate.jobType },
+            { label: 'Location',   value: '📍 ' + candidate.location },
+            { label: 'Referred by',value: '👤 ' + (captainMap[candidate.referredBy] || 'You') },
+            { label: 'Submitted',  value: new Date(candidate.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+            ...(candidate.currentJob ? [{ label: 'Current Job', value: candidate.currentJob }] : []),
+            ...(extra.joiningDate ? [{ label: 'Joining Date', value: '📅 ' + new Date(extra.joiningDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }] : []),
+            ...(extra.reportingTime ? [{ label: 'Reporting Time', value: '⏰ ' + extra.reportingTime }] : []),
+            ...(extra.contactPerson ? [{ label: 'Contact Person', value: '👤 ' + extra.contactPerson }] : []),
+          ];
+          return (
+            <>
+              {rows.map(({ label, value }) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--neutral-200)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--neutral-500)' }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--neutral-900)', textAlign: 'right', maxWidth: '55%' }}>{value}</span>
+                </div>
+              ))}
+              {candidate.geo && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--neutral-200)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--neutral-500)' }}>Geotag</span>
+                  <a
+                    href={`https://maps.google.com/maps?q=${candidate.geo.lat},${candidate.geo.lng}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 700, color: '#2563EB', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    📍 View on Map
+                  </a>
+                </div>
+              )}
+              {candidate.currentStage === 'Placed' && guaranteeDaysLeft !== null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                  <span style={{ fontSize: 13, color: 'var(--neutral-500)' }}>Guarantee</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: guaranteeDaysLeft < 7 ? 'var(--danger)' : guaranteeDaysLeft < 0 ? 'var(--neutral-500)' : 'var(--success)' }}>
+                    {guaranteeDaysLeft < 0 ? '✓ Expired' : guaranteeDaysLeft === 0 ? '⚠️ Expires today!' : `${guaranteeDaysLeft}d left`}
+                  </span>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Timeline */}

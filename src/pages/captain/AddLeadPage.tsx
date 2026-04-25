@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, ChevronDown, StickyNote, Calendar, Briefcase } from 'lucide-react';
+import { ArrowLeft, MapPin, ChevronDown, StickyNote, Calendar, Briefcase, Clock, User, Navigation } from 'lucide-react';
 import {
   addCandidate, getSettings, getJobs, getEarningRateForPlacementNumber,
   getCaptainStats, setLeadExtra,
@@ -44,11 +44,15 @@ export default function AddLeadPage() {
   const [jobType, setJobType]       = useState(settings.jobTypes[0] || 'Security Guard');
   const [location, setLocation]     = useState('');
   const [customArea, setCustomArea] = useState('');
-  const [linkedJobId, setLinkedJob] = useState('');
-  const [joiningDate, setJoining]   = useState('');
-  const [followUpDate, setFollowUp] = useState(tomorrowStr());
-  const [note, setNote]             = useState('');
-  const [loading, setLoading]       = useState(false);
+  const [linkedJobId, setLinkedJob]       = useState('');
+  const [joiningDate, setJoining]         = useState('');
+  const [followUpDate, setFollowUp]       = useState(tomorrowStr());
+  const [reportingTime, setReportingTime] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [note, setNote]                   = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [geo, setGeo]           = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'loading' | 'ok' | 'denied' | null>('loading');
 
   const expectedEarning = getEarningRateForPlacementNumber((stats?.placements || 0) + 1);
   const phoneDigits     = phone.replace(/\D/g, '');
@@ -76,6 +80,18 @@ export default function AddLeadPage() {
     }
   };
 
+  useEffect(() => {
+    if (!navigator.geolocation) { setGeoStatus('denied'); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        setGeoStatus('ok');
+      },
+      () => setGeoStatus('denied'),
+      { timeout: 10000, enableHighAccuracy: true, maximumAge: 0 },
+    );
+  }, []);
+
   const handleSubmit = () => {
     if (!nameValid)  { toast.error('Enter at least 2 characters for name'); return; }
     if (!phoneValid) { toast.error('Enter a valid 10-digit number'); return; }
@@ -94,6 +110,7 @@ export default function AddLeadPage() {
       placedAt: null,
       guaranteeExpiresAt: null,
       replacementNeeded: false,
+      geo: geo || undefined,
       payout: { amount: expectedEarning, status: 'pending', paidAt: null },
       timeline: [{
         stage: 'Sourced',
@@ -109,9 +126,11 @@ export default function AddLeadPage() {
     });
 
     setLeadExtra(newCand.id, {
-      linkedJobId:  linkedJobId || undefined,
-      joiningDate:  joiningDate || null,
-      followUpDate: followUpDate || null,
+      linkedJobId:   linkedJobId || undefined,
+      joiningDate:   joiningDate || null,
+      followUpDate:  followUpDate || null,
+      reportingTime: reportingTime || undefined,
+      contactPerson: contactPerson || undefined,
     });
 
     toast.success(`${name.trim()} added! Follow-up set for ${followUpDate ? new Date(followUpDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'tomorrow'} 🎯`);
@@ -314,6 +333,66 @@ export default function AddLeadPage() {
             Optional — expected start date
           </div>
         </div>
+      </div>
+
+      {/* ── Reporting time + Contact person row ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        <div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 9 }}>
+            <Clock size={11} /> Reporting Time
+          </label>
+          <div style={{ position: 'relative' }}>
+            <Clock size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--neutral-400)', pointerEvents: 'none' }} />
+            <input
+              type="time" value={reportingTime}
+              onChange={e => setReportingTime(e.target.value)}
+              style={{ ...inputBase, padding: '14px 12px 14px 36px', fontSize: 14, cursor: 'pointer', color: reportingTime ? 'var(--neutral-900)' : 'var(--neutral-400)' }}
+              onFocus={onF} onBlur={onB}
+            />
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--neutral-400)', fontWeight: 600, marginTop: 5, paddingLeft: 2 }}>Optional joining time</div>
+        </div>
+        <div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--neutral-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 9 }}>
+            <User size={11} /> Contact Person
+          </label>
+          <div style={{ position: 'relative' }}>
+            <User size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--neutral-400)', pointerEvents: 'none' }} />
+            <input
+              type="text" value={contactPerson}
+              onChange={e => setContactPerson(e.target.value)}
+              placeholder="Manager name"
+              style={{ ...inputBase, padding: '14px 12px 14px 36px', fontSize: 14 }}
+              onFocus={onF} onBlur={onB}
+            />
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--neutral-400)', fontWeight: 600, marginTop: 5, paddingLeft: 2 }}>Who to report to</div>
+        </div>
+      </div>
+
+      {/* ── Geotag (auto) ── */}
+      <div style={{ marginBottom: 20 }}>
+        {geoStatus === 'loading' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: 'var(--neutral-100)', border: '1px solid var(--neutral-200)' }}>
+            <Navigation size={14} color="var(--neutral-400)" />
+            <span style={{ fontSize: 12, color: 'var(--neutral-400)', fontWeight: 600 }}>Getting GPS location…</span>
+          </div>
+        )}
+        {geoStatus === 'ok' && geo && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'var(--brand-green-light)', border: '1.5px solid rgba(46,168,106,0.2)' }}>
+            <Navigation size={14} color="var(--brand-green)" />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-green)' }}>📍 Location tagged · </span>
+              <span style={{ fontSize: 11, color: 'var(--brand-green)', fontFamily: 'DM Mono, monospace' }}>{geo.lat.toFixed(4)}, {geo.lng.toFixed(4)}</span>
+            </div>
+          </div>
+        )}
+        {geoStatus === 'denied' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.2)' }}>
+            <Navigation size={14} color="#D97706" />
+            <span style={{ fontSize: 12, color: '#D97706', fontWeight: 600 }}>Location access denied — allow it in browser settings</span>
+          </div>
+        )}
       </div>
 
       {/* ── Note ── */}

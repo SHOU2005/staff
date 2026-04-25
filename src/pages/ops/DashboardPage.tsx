@@ -1,8 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MapPin, MessageCircle } from 'lucide-react';
 import {
-  getGuaranteeAlerts, getOpsAnalytics,
+  getGuaranteeAlerts, getOpsAnalytics, getTodaysJoinings, getCaptains,
+  buildConfirmationMessage,
+  type Candidate, type LeadExtra, type Captain,
 } from '../../lib/data';
+import CaptainMap from '../../components/CaptainMap';
 
 const STAGE_COLORS: Record<string, string> = {
   Sourced: '#6B7280',
@@ -14,13 +18,22 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default function OpsDashboardPage() {
   const navigate = useNavigate();
-  const [analytics, setAnalytics] = useState<ReturnType<typeof getOpsAnalytics> | null>(null);
-  const [alerts, setAlerts] = useState<ReturnType<typeof getGuaranteeAlerts>>([]);
-
+  const [analytics, setAnalytics]       = useState<ReturnType<typeof getOpsAnalytics> | null>(null);
+  const [alerts, setAlerts]             = useState<ReturnType<typeof getGuaranteeAlerts>>([]);
+  const [todayJoinings, setTodayJoinings] = useState<Array<Candidate & { extra: LeadExtra; captainName: string }>>([]);
+  const [liveCount, setLiveCount]       = useState(0);
+  const [captains, setCaptains]         = useState<Captain[]>([]);
 
   const load = useCallback(() => {
     setAnalytics(getOpsAnalytics());
     setAlerts(getGuaranteeAlerts().slice(0, 3));
+    setTodayJoinings(getTodaysJoinings());
+    const caps = getCaptains();
+    setCaptains(caps);
+    const live = caps.filter(c =>
+      c.lastLocation && (Date.now() - new Date(c.lastLocation.updatedAt).getTime()) < 2 * 60 * 60 * 1000
+    ).length;
+    setLiveCount(live);
   }, []);
 
   useEffect(() => { 
@@ -71,6 +84,74 @@ export default function OpsDashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Live captains banner */}
+      {liveCount > 0 && (
+        <div
+          onClick={() => navigate('/ops/locations')}
+          style={{ background: 'linear-gradient(135deg,rgba(5,150,105,0.1),rgba(5,150,105,0.05))', border: '1.5px solid rgba(5,150,105,0.25)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+        >
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: 'rgba(5,150,105,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <MapPin size={18} color="#059669" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#059669' }}>
+              {liveCount} captain{liveCount > 1 ? 's' : ''} live on field 🟢
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--neutral-500)', marginTop: 1 }}>Tap to view live locations →</div>
+          </div>
+        </div>
+      )}
+
+      {/* Captain locations mini map */}
+      {captains.some(c => c.lastLocation) && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--neutral-600)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              📍 Captain Locations
+            </div>
+            <button
+              onClick={() => navigate('/ops/locations')}
+              style={{ fontSize: 12, color: 'var(--brand-green-mid)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Full view →
+            </button>
+          </div>
+          <CaptainMap captains={captains} height={220} compact />
+        </div>
+      )}
+
+      {/* Today's Joinings */}
+      {todayJoinings.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#D97706', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              🎉 Today's Joinings ({todayJoinings.length})
+            </div>
+          </div>
+          {todayJoinings.map(c => {
+            const msg = buildConfirmationMessage(c, c.extra);
+            return (
+              <div key={c.id} style={{ background: 'rgba(37,211,102,0.07)', border: '1.5px solid rgba(37,211,102,0.25)', borderRadius: 14, padding: '12px 14px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--neutral-900)' }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--neutral-500)', marginTop: 2 }}>{c.jobType} · {c.location} · via {c.captainName}</div>
+                    {c.extra.reportingTime && <div style={{ fontSize: 11, color: '#D97706', fontWeight: 600, marginTop: 3 }}>⏰ {c.extra.reportingTime}</div>}
+                  </div>
+                  <a
+                    href={`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg,#25D366,#128C7E)', borderRadius: 9, padding: '7px 10px', fontSize: 11, fontWeight: 700, color: '#fff', textDecoration: 'none', flexShrink: 0, marginLeft: 8 }}
+                  >
+                    <MessageCircle size={12} /> Send
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Funnel preview */}
       <div style={{ background: 'var(--neutral-50)', border: '1px solid var(--neutral-200)', borderRadius: 16, padding: 16, marginBottom: 18 }}>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowLeft, Phone, Lock, User, KeyRound } from 'lucide-react';
 import { loginUser, registerCaptain, registerOps } from '../lib/data';
 import { useRole } from '../contexts/RoleContext';
@@ -8,7 +9,12 @@ type Screen = 'choose_role' | 'captain_login' | 'captain_register' | 'ops_login'
 
 export default function AuthPage() {
   const { setSession } = useRole();
-  const [screen, setScreen] = useState<Screen>('choose_role');
+  const location = useLocation();
+  const isOpsApp  = import.meta.env.VITE_APP === 'ops';
+  const isOpsPath = location.pathname.startsWith('/ops');
+  const [screen, setScreen] = useState<Screen>(
+    (isOpsApp || isOpsPath) ? 'ops_login' : 'captain_login'
+  );
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
@@ -96,16 +102,14 @@ export default function AuthPage() {
           <div style={{ fontSize: 13, color: 'var(--brand-green-mid)', fontWeight: 700, marginTop: 5 }}>
             कमाएं हर hire पर · Earn on every placement
           </div>
-          {screen === 'choose_role' && (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginTop:16 }}>
-              {[['500+', 'Active Captains'], ['₹300+', 'Per Hire'], ['30 days', 'Guarantee']].map(([v, l]) => (
-                <div key={l} style={{ textAlign:'center' }}>
-                  <div style={{ fontSize:15, fontWeight:900, color:'var(--neutral-900)' }}>{v}</div>
-                  <div style={{ fontSize:10, color:'var(--neutral-500)', fontWeight:600 }}>{l}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginTop:16 }}>
+            {[['500+', 'Active Captains'], ['₹300+', 'Per Hire'], ['30 days', 'Guarantee']].map(([v, l]) => (
+              <div key={l} style={{ textAlign:'center' }}>
+                <div style={{ fontSize:15, fontWeight:900, color:'var(--neutral-900)' }}>{v}</div>
+                <div style={{ fontSize:10, color:'var(--neutral-500)', fontWeight:600 }}>{l}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Card */}
@@ -165,9 +169,6 @@ export default function AuthPage() {
           {/* ─── CAPTAIN LOGIN ───────────────────────────────── */}
           {screen === 'captain_login' && (
             <>
-              <button onClick={() => setScreen('choose_role')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'var(--neutral-500)', fontSize:13, fontFamily:'inherit', padding:0, marginBottom:20 }}>
-                <ArrowLeft size={14} /> Back
-              </button>
               <div style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand-green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Captain Login</div>
                 <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--neutral-900)' }}>Sign in 👷</h2>
@@ -255,7 +256,7 @@ export default function AuthPage() {
           {/* ─── OPS LOGIN ───────────────────────────────────── */}
           {screen === 'ops_login' && (
             <>
-              <button onClick={() => setScreen('choose_role')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'var(--neutral-500)', fontSize:13, fontFamily:'inherit', padding:0, marginBottom:20 }}>
+              <button onClick={() => setScreen('captain_login')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'var(--neutral-500)', fontSize:13, fontFamily:'inherit', padding:0, marginBottom:20 }}>
                 <ArrowLeft size={14} /> Back
               </button>
               <div style={{ marginBottom: 24 }}>

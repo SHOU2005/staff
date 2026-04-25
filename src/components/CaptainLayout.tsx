@@ -1,6 +1,8 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Home, Briefcase, IndianRupee, User } from 'lucide-react';
+import { saveCaptainLocation } from '../lib/data';
+import { useRole } from '../contexts/RoleContext';
 
 const NAV_LEFT = [
   { to: '/captain/home',  icon: Home,     label: 'होम'    },
@@ -11,8 +13,30 @@ const NAV_RIGHT = [
   { to: '/captain/profile',  icon: User,        label: 'प्रोफाइल' },
 ];
 
+const LOCATION_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
 export default function CaptainLayout({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const { captainId } = useRole();
+
+  const pushLocation = useCallback(() => {
+    if (!captainId || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => saveCaptainLocation(captainId, pos.coords.latitude, pos.coords.longitude),
+      () => {},
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 },
+    );
+  }, [captainId]);
+
+  useEffect(() => {
+    // Request permission on first mount, then push silently
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    pushLocation();
+    const interval = setInterval(pushLocation, LOCATION_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [pushLocation]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#F5F7FA' }}>

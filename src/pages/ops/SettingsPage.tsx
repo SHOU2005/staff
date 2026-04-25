@@ -185,6 +185,32 @@ export default function OpsSettingsPage() {
         </button>
       </Section>
 
+      <Section id="contacts" title="📞 WhatsApp Contact Numbers" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
+        <p style={{ margin:'0 0 12px', fontSize:13, color:'var(--neutral-500)', lineHeight:1.5 }}>
+          These numbers appear at the bottom of every joining confirmation message sent to candidates.
+        </p>
+        {[0, 1].map(i => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <label style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--neutral-500)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>
+              Contact Number {i + 1}
+            </label>
+            <input
+              type="tel"
+              value={(settings.contactNumbers || ['', ''])[i] || ''}
+              onChange={e => {
+                const nums = [...(settings.contactNumbers || ['', ''])];
+                nums[i] = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setSettings({ ...settings, contactNumbers: nums });
+              }}
+              placeholder={`+91 XXXXX-XXXXX`}
+              style={{ ...inputStyle, fontFamily:'DM Mono, monospace' }}
+              {...focusProps}
+            />
+          </div>
+        ))}
+        <button onClick={handleSaveSettings} style={{ width:'100%', height:46, borderRadius:12, border:'none', background:'var(--brand-green-mid)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Save Numbers</button>
+      </Section>
+
       <Section id="export" title="📊 Data Export" activeId={activeSection} onToggle={id => setActiveSection(activeSection === id ? null : id)}>
         <p style={{ margin:'0 0 12px', fontSize:13, color:'var(--neutral-500)' }}>Download complete pipeline data as CSV for reporting.</p>
         <button id="export-csv-btn" onClick={exportCSV} style={{ width:'100%', height:46, borderRadius:12, border:'1.5px solid var(--neutral-200)', background:'transparent', color:'var(--neutral-700)', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
