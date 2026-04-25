@@ -8,8 +8,8 @@
     "dev:captain": "VITE_APP=captain vite",
     "dev:ops": "VITE_APP=ops vite",
     "build": "tsc -b && vite build",
-    "build:captain": "tsc -b && VITE_APP=captain vite build --outDir dist-captain",
-    "build:ops": "tsc -b && VITE_APP=ops vite build --outDir dist-ops",
+    "build:captain": "tsc -b && vite build --outDir dist-captain",
+    "build:ops": "tsc -b && vite build --outDir dist-ops",
     "lint": "eslint .",
     "preview": "vite preview"
   },
